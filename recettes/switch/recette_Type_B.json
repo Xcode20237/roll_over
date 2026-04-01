@@ -1,0 +1,71 @@
+{
+  "meta": {
+    "type_bouteille": "Type_A",
+    "description": "Bouteille 500ml - Analyse par indices",
+    "version": "4.0",
+    "note": "v4 — D3.2 migré gradient→colorimetrique, check_position géré nativement par le switch"
+  },
+  "algorithmes": {
+    "pretraitement_fusion_ia": {
+      "actif": true,
+      "topic_mqtt": "vision/ia/pretraitement",
+      "selection_images": {
+        "etages_attendus": [
+          1
+        ],
+        "angles_attendus": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8
+        ]
+      }
+    },
+    "traitement_colorimetrique": {
+      "actif": true,
+      "topic_mqtt": "vision/classique/colorimetrique",
+      "description": "Inspection HSV — D3.1 Bouchon, D3.2 Bouchon de travers, D3.3 Bague, D2.4 Mousse, D4.1 Fuites, D4.4 Marquage",
+      "selection_images": {
+        "etages_attendus": [
+          1
+        ],
+        "angles_attendus": [
+          1,
+          3,
+          5,
+          7
+        ]
+      }
+    },
+    "traitement_gradient": {
+      "actif": true,
+      "topic_mqtt": "vision/classique/gradient",
+      "description": "Inspection Sobel Y — D2.1 Sous-remplissage, D2.2 Sur-remplissage",
+      "selection_images": {
+        "etages_attendus": [
+          1
+        ],
+        "angles_attendus": [
+          1
+        ]
+      }
+    },
+    "traitement_geometrique": {
+      "actif": true,
+      "topic_mqtt": "vision/classique/geometrique",
+      "description": "Inspection Canny — D1.4 Deformation corps, D1.5 Col tordu, D4.2 Etiquette mal centree",
+      "selection_images": {
+        "etages_attendus": [
+          1
+        ],
+        "angles_attendus": [
+          1
+        ]
+      }
+    }
+  }
+}

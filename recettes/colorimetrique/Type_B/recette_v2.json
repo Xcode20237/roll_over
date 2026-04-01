@@ -1,0 +1,244 @@
+{
+  "type_bouteille": "Type_A",
+  "description": "Bouteille courte",
+  "service": "colorimetrique",
+  "version": 2,
+  "created_at": "2026-03-19T17:49:32.981723",
+  "calibration_globale": {
+    "pixels_per_mm": 1.0,
+    "clahe_clip": 2.5,
+    "clahe_tile": 8
+  },
+  "defauts": [
+    {
+      "id_defaut": "D2.4",
+      "label": "Mousse excessive",
+      "severite": "Mineur",
+      "actif": true,
+      "algorithme": "presence_hsv",
+      "acquisition": {
+        "mode": "multiple",
+        "etage": 1,
+        "angles_requis": [
+          1
+        ]
+      },
+      "reference_image": "./ref_D2.4.png",
+      "alignment": {
+        "use_alignment": false,
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0,
+        "anchor_center_y": 0.0,
+        "max_transl": 40.0,
+        "search_margin": 40.0,
+        "tm_threshold": 0.6,
+        "scale_min": 0.95,
+        "scale_max": 1.05,
+        "scale_steps": 5,
+        "debug": false
+      },
+      "rois": [
+        {
+          "id": 0,
+          "type": "presence",
+          "name": "PRESENCE_0",
+          "x": 32,
+          "y": 92,
+          "width": 129,
+          "height": 27,
+          "color": [
+            0,
+            255,
+            0
+          ],
+          "hsv_params": {
+            "h_min": 18,
+            "h_max": 30,
+            "s_min": 8,
+            "s_max": 255,
+            "v_min": 0,
+            "v_max": 255
+          },
+          "expected_area": 392,
+          "min_area": 313,
+          "max_area": 470
+        }
+      ]
+    },
+    {
+      "id_defaut": "D3.1",
+      "label": "Bouchon manquant",
+      "severite": "Critique",
+      "actif": true,
+      "algorithme": "presence_hsv",
+      "acquisition": {
+        "mode": "unique",
+        "etage": 1,
+        "angles_requis": [
+          1
+        ]
+      },
+      "reference_image": "./ref_D3.1.bmp",
+      "alignment": {
+        "use_alignment": true,
+        "x": 102,
+        "y": 90,
+        "width": 109,
+        "height": 13,
+        "anchor_center_y": 96.5,
+        "max_transl": 40.0,
+        "search_margin": 40.0,
+        "tm_threshold": 0.6,
+        "scale_min": 0.95,
+        "scale_max": 1.05,
+        "scale_steps": 5,
+        "debug": false
+      },
+      "rois": [
+        {
+          "id": 0,
+          "type": "presence",
+          "name": "PRESENCE_0",
+          "x": 66,
+          "y": 12,
+          "width": 185,
+          "height": 113,
+          "color": [
+            0,
+            255,
+            0
+          ],
+          "hsv_params": {
+            "h_min": 0,
+            "h_max": 16,
+            "s_min": 62,
+            "s_max": 255,
+            "v_min": 0,
+            "v_max": 255
+          },
+          "expected_area": 4111,
+          "min_area": 3288,
+          "max_area": 4933
+        }
+      ]
+    },
+    {
+      "id_defaut": "D3.2",
+      "label": "Bouchon de travers",
+      "severite": "Critique",
+      "actif": true,
+      "algorithme": "orientation_masque",
+      "acquisition": {
+        "mode": "multiple",
+        "etage": 1,
+        "angles_requis": [
+          1,
+          3,
+          5,
+          7
+        ]
+      },
+      "reference_image": "./ref_D3.2.bmp",
+      "alignment": {
+        "use_alignment": true,
+        "x": 90,
+        "y": 84,
+        "width": 117,
+        "height": 22,
+        "anchor_center_y": 95.0,
+        "max_transl": 40.0,
+        "search_margin": 40.0,
+        "tm_threshold": 0.6,
+        "scale_min": 0.97,
+        "scale_max": 1.03,
+        "scale_steps": 5,
+        "debug": false
+      },
+      "rois": [
+        {
+          "id": 0,
+          "type": "orientation",
+          "name": "ORIENTATION_1",
+          "x": 79,
+          "y": 3,
+          "width": 159,
+          "height": 88,
+          "color": [
+            255,
+            0,
+            0
+          ],
+          "hsv_params": {
+            "h_min": 170,
+            "h_max": 16,
+            "s_min": 107,
+            "s_max": 255,
+            "v_min": 0,
+            "v_max": 255
+          },
+          "tolerance_angle_deg": 0.9,
+          "tolerance_decentrage_px": 10.0
+        }
+      ]
+    },
+    {
+      "id_defaut": "D4.1",
+      "label": "Fuites parois",
+      "severite": "Critique",
+      "actif": true,
+      "algorithme": "presence_hsv",
+      "acquisition": {
+        "mode": "unique",
+        "etage": 1,
+        "angles_requis": [
+          1
+        ]
+      },
+      "reference_image": "./ref_D4.1.bmp",
+      "alignment": {
+        "use_alignment": false,
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0,
+        "anchor_center_y": 0.0,
+        "max_transl": 40.0,
+        "search_margin": 40.0,
+        "tm_threshold": 0.6,
+        "scale_min": 0.95,
+        "scale_max": 1.05,
+        "scale_steps": 5,
+        "debug": false
+      },
+      "rois": [
+        {
+          "id": 0,
+          "type": "presence",
+          "name": "PRESENCE_0",
+          "x": 70,
+          "y": 11,
+          "width": 175,
+          "height": 195,
+          "color": [
+            0,
+            255,
+            0
+          ],
+          "hsv_params": {
+            "h_min": 0,
+            "h_max": 13,
+            "s_min": 103,
+            "s_max": 255,
+            "v_min": 0,
+            "v_max": 255
+          },
+          "expected_area": 4098,
+          "min_area": 3278,
+          "max_area": 4917
+        }
+      ]
+    }
+  ]
+}

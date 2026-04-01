@@ -1,0 +1,28 @@
+# --- Environnement Python ---
+.venv/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# --- Package Python Local ---
+*.egg-info/
+build/
+dist/
+
+# --- Variables d'Environnement ---
+.env
+
+# --- VS Code / IDE ---
+.vscode/
+.idea/
+
+# --- Fichiers de données ou temporaires locaux ---
+dossier_reception_ftp/
+data/
+log/
+*.log
+
+# --- Système d'exploitation ---
+.DS_Store
+Thumbs.db

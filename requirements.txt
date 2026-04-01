@@ -1,0 +1,38 @@
+# ============================================================
+# Dépendances Python — Projet Roll Over Vision
+# ============================================================
+# Généré le 2026-04-01
+# Installer avec : pip install -r requirements.txt
+# ============================================================
+
+# --- Installation locale du module partagé (Dossier shared/) ---
+-e .
+
+# --- Traitement d'image ---
+opencv-python>=4.8.0
+numpy>=1.24.0
+
+# --- Interface graphique (outils de test/calibration) ---
+Pillow>=10.0.0
+
+# --- Communication MQTT ---
+paho-mqtt>=2.0.0
+
+# --- Stockage objet (MinIO) ---
+minio>=7.2.0
+
+# --- Variables d'environnement ---
+python-dotenv>=1.0.0
+
+# --- Communication OPC UA (Automate PLC) ---
+# Utilisé par service_acquisition.py et service_decision_finale.py
+asyncua>=1.0.0
+
+# --- Base de données PostgreSQL ---
+# Utilisé par service_decision_finale.py et dashboard/db_reader.py
+psycopg2-binary>=2.9.0
+
+# --- Dashboard Web (Flask + SocketIO) ---
+flask>=2.3.0
+flask-socketio>=5.3.0
+eventlet>=0.33.0

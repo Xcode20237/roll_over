@@ -1,0 +1,7 @@
+flask>=2.3
+flask-socketio>=5.3
+paho-mqtt>=1.6
+psycopg2-binary>=2.9
+minio>=7.1
+python-dotenv>=1.0
+eventlet>=0.33

@@ -1,0 +1,22 @@
+{
+  "dimensions_physiques": {
+    "diametre_mm": 60,
+    "distance_camera_mm": 255,
+    "fov_camera_deg": 23.7
+  },
+  "grille_capture": {
+    "etages_attendus": [
+      1
+    ],
+    "angles_attendus": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8
+    ]
+  }
+}

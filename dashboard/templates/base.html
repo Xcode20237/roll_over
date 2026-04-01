@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Roll-over QC — {% block title %}Dashboard{% endblock %}</title>
+<link rel="stylesheet" href="/static/css/style.css">
+<!-- Lucide Icons (local en priorité, CDN en fallback) -->
+<script src="/static/js/lucide.js" onerror="loadFromCDN('lucide')"></script>
+<script>
+  window._LIB_SOCKETIO_URL = "/static/js/socket.io.min.js";
+  window._LIB_CHARTJS_URL  = "/static/js/chart.min.js";
+  window._LIB_LUCIDE_URL   = "/static/js/lucide.js";
+  window._CDN_SOCKETIO     = "https://cdn.socket.io/4.7.2/socket.io.min.js";
+  window._CDN_CHARTJS      = "https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js";
+  window._CDN_LUCIDE       = "https://unpkg.com/lucide@0.441.0/dist/umd/lucide.js";
+</script>
+<script src="/static/js/socket.io.min.js" onerror="loadFromCDN('socketio')"></script>
+<script src="/static/js/chart.min.js"     onerror="loadFromCDN('chartjs')"></script>
+<script>
+function loadFromCDN(lib) {
+  var s = document.createElement('script');
+  s.src = lib === 'socketio' ? window._CDN_SOCKETIO
+        : lib === 'lucide'   ? window._CDN_LUCIDE
+        : window._CDN_CHARTJS;
+  document.head.appendChild(s);
+}
+window.addEventListener('DOMContentLoaded', function() {
+  if (typeof io     === 'undefined') loadFromCDN('socketio');
+  if (typeof Chart  === 'undefined') loadFromCDN('chartjs');
+  if (typeof lucide === 'undefined') loadFromCDN('lucide');
+  else lucide.createIcons();
+});
+</script>
+</head>
+<body>
+
+<!-- ══ ALERTE QUALITÉ ════════════════════════════════════════════ -->
+<div id="alert-bar" class="alert-bar hidden">
+  <div class="alert-bar-content">
+    <i data-lucide="alert-triangle" style="width:16px;height:16px;color:var(--alarm);flex-shrink:0"></i>
+    <span id="alert-bar-msg"></span>
+    <button id="alert-ack-btn" class="btn-ack">Acquitter</button>
+  </div>
+</div>
+
+<!-- ══ NAVBAR ════════════════════════════════════════════════════ -->
+<nav class="navbar">
+  <div class="nav-brand">
+    <span class="nav-logo">
+      <i data-lucide="scan-eye" style="width:22px;height:22px"></i>
+    </span>
+    <div>
+      <div class="nav-title">Roll-over QC</div>
+      <div class="nav-sub">Vision Industrielle</div>
+    </div>
+  </div>
+
+  <div class="nav-links">
+    <a href="/"           class="nav-link {% if request.path == '/'           %}active{% endif %}">
+      <i data-lucide="layout-dashboard" style="width:15px;height:15px"></i>
+      Opérateur
+    </a>
+    <a href="/technique"  class="nav-link {% if request.path == '/technique'  %}active{% endif %}">
+      <i data-lucide="activity" style="width:15px;height:15px"></i>
+      Technique
+    </a>
+    <a href="/historique" class="nav-link {% if request.path == '/historique' %}active{% endif %}">
+      <i data-lucide="database" style="width:15px;height:15px"></i>
+      Historique
+    </a>
+  </div>
+
+  <div class="nav-right">
+    <div class="mqtt-indicator" id="mqtt-dot" title="Connexion MQTT">
+      <span class="dot dot-unknown" id="mqtt-dot-circle"></span>
+      <span class="dot-label" id="mqtt-label">MQTT</span>
+    </div>
+    <button class="lang-btn" id="lang-btn" onclick="toggleLang()">EN</button>
+    <span class="nav-clock" id="nav-clock">--:--:--</span>
+  </div>
+</nav>
+
+<!-- ══ CONTENU ═══════════════════════════════════════════════════ -->
+<main class="main-content">
+  {% block content %}{% endblock %}
+</main>
+
+<!-- ══ MODAL DÉTAIL ══════════════════════════════════════════════ -->
+<div id="modal-overlay" class="modal-overlay hidden" onclick="closeModal()">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <div class="modal-title" id="modal-title">
+        <i data-lucide="package-search" style="width:18px;height:18px"></i>
+        Détail bouteille
+      </div>
+      <button class="modal-close" onclick="closeModal()">
+        <i data-lucide="x" style="width:18px;height:18px"></i>
+      </button>
+    </div>
+    <div class="modal-body" id="modal-body"></div>
+  </div>
+</div>
+
+<audio id="alert-sound" preload="auto">
+  <source src="/static/sounds/alert.wav" type="audio/wav">
+</audio>
+
+<script src="/static/js/app.js"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

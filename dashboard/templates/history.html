@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% block title %}Historique{% endblock %}
+
+{% block content %}
+<div class="history-page">
+
+  <!-- ── RECHERCHE ──────────────────────────────────────────── -->
+  <div class="card search-card">
+    <div class="card-header">
+      <i data-lucide="search" style="width:13px;height:13px"></i>
+      <span data-i18n="recherche">Recherche dans l'historique</span>
+    </div>
+    <div class="search-grid">
+      <div class="search-field">
+        <label data-i18n="id_bouteille">ID Bouteille</label>
+        <input type="text" id="s-id" class="search-input" placeholder="BTL_001">
+      </div>
+      <div class="search-field">
+        <label data-i18n="type">Type</label>
+        <input type="text" id="s-type" class="search-input" placeholder="Type_A">
+      </div>
+      <div class="search-field">
+        <label data-i18n="verdict">Verdict</label>
+        <select id="s-verdict" class="search-input">
+          <option value="">Tous</option>
+          <option value="OK">OK</option>
+          <option value="NG">NG</option>
+        </select>
+      </div>
+      <div class="search-field">
+        <label data-i18n="defaut">Défaut</label>
+        <input type="text" id="s-defaut" class="search-input" placeholder="D2.1">
+      </div>
+      <div class="search-field">
+        <label data-i18n="date_debut">Date début</label>
+        <input type="datetime-local" id="s-debut" class="search-input">
+      </div>
+      <div class="search-field">
+        <label data-i18n="date_fin">Date fin</label>
+        <input type="datetime-local" id="s-fin" class="search-input">
+      </div>
+    </div>
+    <div class="search-actions">
+      <button class="btn-primary" onclick="doSearch(1)">
+        <i data-lucide="search" style="width:13px;height:13px"></i>
+        <span data-i18n="rechercher">Rechercher</span>
+      </button>
+      <button class="btn-secondary" onclick="clearSearch()">
+        <i data-lucide="x-circle" style="width:13px;height:13px"></i>
+        <span data-i18n="effacer">Effacer</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- ── RÉSULTATS ──────────────────────────────────────────── -->
+  <div class="card results-card">
+    <div class="card-header-row">
+      <div class="card-header">
+        <i data-lucide="archive" style="width:13px;height:13px"></i>
+        <span data-i18n="resultats">Résultats</span>
+        <span style="color:var(--text-primary);margin-left:4px" id="results-count">—</span>
+      </div>
+      <button class="btn-export" onclick="exportCSV()">
+        <i data-lucide="download" style="width:13px;height:13px"></i>
+        <span data-i18n="exporter_csv">Exporter CSV</span>
+      </button>
+    </div>
+
+    <div class="verdicts-table-wrap">
+      <table class="verdicts-table">
+        <thead>
+          <tr>
+            <th data-i18n="date_heure">Date / Heure</th>
+            <th data-i18n="id_bouteille">ID</th>
+            <th data-i18n="type">Type</th>
+            <th data-i18n="verdict">Verdict</th>
+            <th data-i18n="services">Services</th>
+            <th data-i18n="raison">Raison NG</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="history-tbody">
+          <tr>
+            <td colspan="7" class="empty-msg" data-i18n="lancer_recherche">
+              Lancez une recherche pour afficher les résultats.
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="pagination" id="pagination"></div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/history.js"></script>
+{% endblock %}

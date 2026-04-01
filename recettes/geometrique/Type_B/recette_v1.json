@@ -1,0 +1,118 @@
+{
+  "type_bouteille": "Type_A_geometrie",
+  "description": "comme ca aussi",
+  "service": "geometrique",
+  "version": 1,
+  "created_at": "2026-03-19T21:10:54.009052",
+  "calibration_globale": {
+    "pixels_per_mm": 1.0,
+    "clahe_clip": 2.5,
+    "clahe_tile": 8
+  },
+  "defauts": [
+    {
+      "id_defaut": "D1.4",
+      "label": "Déformation corps",
+      "severite": "Majeur",
+      "actif": true,
+      "algorithme": "profil_canny",
+      "acquisition": {
+        "mode": "unique",
+        "etage": 1,
+        "angles_requis": [
+          1
+        ]
+      },
+      "reference_image": "./ref_D1.4.bmp",
+      "alignment": {
+        "use_alignment": true,
+        "x": 61,
+        "y": 211,
+        "width": 42,
+        "height": 23,
+        "anchor_center_y": 222.5,
+        "max_transl": 40.0,
+        "search_margin": 40.0,
+        "tm_threshold": 0.6,
+        "scale_min": 0.97,
+        "scale_max": 1.03,
+        "scale_steps": 5,
+        "debug": false
+      },
+      "rois": [
+        {
+          "id": 0,
+          "type": "profil",
+          "name": "PROFIL_0",
+          "x": 37,
+          "y": 12,
+          "width": 245,
+          "height": 178,
+          "color": [
+            0,
+            255,
+            0
+          ],
+          "canny_low": 24,
+          "canny_high": 71,
+          "min_largeur_px": 160.39,
+          "max_largeur_px": 168.1,
+          "max_ecart_type_px": 10.0,
+          "max_pct_lignes_ng": 10.0,
+          "largeur_reference_px": 164.0
+        }
+      ],
+      "use_fused_image": false
+    },
+    {
+      "id_defaut": "D1.5",
+      "label": "Col tordu",
+      "severite": "Critique",
+      "actif": true,
+      "algorithme": "derive_centre",
+      "acquisition": {
+        "mode": "unique",
+        "etage": 1,
+        "angles_requis": [
+          1
+        ]
+      },
+      "reference_image": "./ref_D1.5.bmp",
+      "alignment": {
+        "use_alignment": true,
+        "x": 102,
+        "y": 88,
+        "width": 110,
+        "height": 17,
+        "anchor_center_y": 96.5,
+        "max_transl": 40.0,
+        "search_margin": 40.0,
+        "tm_threshold": 0.6,
+        "scale_min": 0.95,
+        "scale_max": 1.05,
+        "scale_steps": 5,
+        "debug": false
+      },
+      "rois": [
+        {
+          "id": 0,
+          "type": "profil",
+          "name": "PROFIL_0",
+          "x": 52,
+          "y": 122,
+          "width": 219,
+          "height": 107,
+          "color": [
+            0,
+            255,
+            0
+          ],
+          "canny_low": 24,
+          "canny_high": 49,
+          "derive_max_px": 5.0
+        }
+      ],
+      "use_fused_image": false
+    }
+  ]
+}

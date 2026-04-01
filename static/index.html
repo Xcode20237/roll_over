@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Roll-Over Vision Dashboard</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+    <header>
+        <div style="font-weight: bold; font-size: 16px;">🔍 Roll-Over Dashboard</div>
+        <div class="status-indicator">
+            <span id="ws-dot" class="dot"></span>
+            <span id="ws-status">Déconnecté</span>
+        </div>
+    </header>
+
+    <main>
+        <!-- PANNEAU GAUCHE : VERDICT GLOBAL -->
+        <aside class="verdict-panel">
+            <div class="verdict-box" id="global-verdict-box">
+                <h2>RÉSULTAT GLOBAL</h2>
+                <div class="verdict-value" id="global-verdict">-</div>
+            </div>
+
+            <div class="bottle-meta">
+                <h3>Infos Bouteille</h3>
+                <hr style="border-color: var(--border-color); margin: 8px 0;">
+                <p>ID: <span id="meta-id">En attente</span></p>
+                <p>Type: <span id="meta-type">-</span></p>
+            </div>
+            
+            <div style="margin-top: 20px; font-size: 12px; color: var(--text-secondary);">
+                <p><strong>Orchestrateur:</strong></p>
+                <p id="orchestrator-status" style="margin-top: 5px;" class="service-status">Hors ligne</p>
+            </div>
+        </aside>
+
+        <!-- PANNEAU DROIT : PIPELINE D'INSPECTION -->
+        <div class="content-panel">
+            
+            <!-- SECTION : ACQUISITION -->
+            <section class="section">
+                <div class="section-header">
+                    <h3>Service Acquisition (Flux MinIO direct)</h3>
+                    <div id="status-acq" class="service-status">Attente images...</div>
+                </div>
+
+                <div class="acquisition-display">
+                    <!-- Image sélectionnée/Dernière arrivée -->
+                    <div class="main-image-container">
+                        <span class="empty-state" id="main-img-placeholder">Aucune image sélectionnée</span>
+                        <img id="main-img" style="display: none;" src="" alt="Vue agrandie">
+                        <div class="image-overlay-info" id="main-img-info" style="display: none;">
+                            <span>Étage: <b id="main-img-e">-</b></span>
+                            <span>Angle: <b id="main-img-a">-</b></span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Grille d'arrivée (8 angles × 2 étages = 16 slots par défaut) -->
+                <div style="font-size: 13px; color: var(--text-secondary); margin-bottom: 8px;">Buffer d'acquisition :</div>
+                <div class="acq-grid" id="acq-grid">
+                    <!-- Inséré dynamiquement par JS -->
+                </div>
+            </section>
+
+            <!-- SECTION : FUSION IA -->
+            <section class="section" style="margin-top: -5px;">
+                <div class="section-header">
+                    <h3>Service Fusion IA</h3>
+                    <div id="status-fusion" class="service-status">En attente</div>
+                </div>
+                <div class="services-container">
+                    <div class="fusion-ia-card">
+                        <div style="font-size: 13px; color: var(--text-secondary); margin-bottom: 8px;">Panorama généré :</div>
+                        <div class="panorama-container">
+                            <span class="empty-state" id="pano-placeholder">En attente du panorama</span>
+                            <img id="pano-img" style="display: none;" src="" alt="Panorama">
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- SECTION : SERVICES CLASSIQUES -->
+            <div class="services-container">
+                
+                <!-- BOUCHON -->
+                <div class="service-card">
+                    <div class="service-card-header">
+                        <h4>Service Inspection Bouchon</h4>
+                        <span class="service-result" id="res-bouchon">WAIT</span>
+                    </div>
+                    <div class="service-images" id="img-bouchon-container">
+                        <div class="service-img-box"><span class="empty-state">Vue</span></div>
+                    </div>
+                    <div class="service-details" id="details-bouchon">
+                        Attente de fin d'analyse...
+                    </div>
+                </div>
+
+                <!-- NIVEAU -->
+                <div class="service-card">
+                    <div class="service-card-header">
+                        <h4>Service Inspection Niveau</h4>
+                        <span class="service-result" id="res-niveau">WAIT</span>
+                    </div>
+                    <div class="service-images" id="img-niveau-container">
+                        <div class="service-img-box"><span class="empty-state">Vue</span></div>
+                    </div>
+                    <div class="service-details" id="details-niveau">
+                        Attente de fin d'analyse...
+                    </div>
+                </div>
+
+                <!-- DEFORMATION -->
+                <div class="service-card">
+                    <div class="service-card-header">
+                        <h4>Service Inspection Déformation</h4>
+                        <span class="service-result" id="res-deformation">WAIT</span>
+                    </div>
+                    <div class="service-images" id="img-deformation-container">
+                        <div class="service-img-box"><span class="empty-state">Vue</span></div>
+                    </div>
+                    <div class="service-details" id="details-deformation">
+                        Attente de fin d'analyse...
+                    </div>
+                </div>
+                
+            </div>
+            
+        </div>
+    </main>
+
+    <script src="/static/dashboard.js"></script>
+</body>
+</html>

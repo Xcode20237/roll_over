@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}Vue Opérateur{% endblock %}
+
+{% block content %}
+
+<!-- ══ STATS RAPIDES ════════════════════════════════════════════ -->
+<div class="stats-bar">
+  <div class="stat-chip">
+    <span class="stat-label" data-i18n="total">Total inspecté</span>
+    <span class="stat-value" id="stat-total">—</span>
+  </div>
+  <div class="stat-chip ok">
+    <span class="stat-label" data-i18n="taux_ok">Taux OK</span>
+    <span class="stat-value" id="stat-taux-ok">—</span>
+  </div>
+  <div class="stat-chip ng">
+    <span class="stat-label" data-i18n="taux_ng">Taux NG</span>
+    <span class="stat-value" id="stat-taux-ng">—</span>
+  </div>
+  <div class="stat-chip">
+    <span class="stat-label" data-i18n="cadence">Cadence / h</span>
+    <span class="stat-value" id="stat-cadence">—</span>
+  </div>
+  <div class="stat-chip">
+    <span class="stat-label" data-i18n="tps_moyen">Tps moyen</span>
+    <span class="stat-value" id="stat-tps">—</span>
+  </div>
+</div>
+
+<!-- ══ PANNEAU CHECK POSITION ════════════════════════════════════ -->
+<div id="check-position-panel" class="check-panel check-panel-idle">
+  <span class="check-icon">
+    <i data-lucide="crosshair" style="width:15px;height:15px"></i>
+  </span>
+  <span class="check-label">Check Position</span>
+  <span class="check-status check-idle">En attente...</span>
+</div>
+
+<!-- ══ GRILLE PRINCIPALE ═════════════════════════════════════════ -->
+<div class="grid-operator">
+
+  <!-- ── VERDICT LIVE ──────────────────────────────────────────── -->
+  <div class="card card-verdict-live">
+    <div class="card-header">
+      <i data-lucide="check-circle-2" style="width:13px;height:13px"></i>
+      <span data-i18n="verdict_live">Verdict en direct</span>
+    </div>
+    <div id="verdict-live-box" class="verdict-live-box verdict-idle">
+      <div class="verdict-live-status" id="verdict-live-status">—</div>
+      <div class="verdict-live-id"    id="verdict-live-id"></div>
+      <div class="verdict-live-type"  id="verdict-live-type"></div>
+    </div>
+  </div>
+
+  <!-- ── BOUTEILLE EN COURS ─────────────────────────────────────── -->
+  <div class="card card-active">
+    <div class="card-header">
+      <i data-lucide="package" style="width:13px;height:13px"></i>
+      <span data-i18n="en_cours">Bouteille en cours</span>
+    </div>
+    <div id="active-bottle-box" class="active-bottle-idle">
+      <i data-lucide="package-open" style="width:18px;height:18px;opacity:.4"></i>
+      <span data-i18n="en_attente">En attente d'une bouteille...</span>
+    </div>
+  </div>
+
+  <!-- ── SERVICES ──────────────────────────────────────────────── -->
+  <div class="card card-services">
+    <div class="card-header">
+      <i data-lucide="cpu" style="width:13px;height:13px"></i>
+      <span data-i18n="services">Services</span>
+    </div>
+    <div class="services-grid" id="services-grid"></div>
+  </div>
+
+  <!-- ── DERNIERS VERDICTS ─────────────────────────────────────── -->
+  <div class="card card-verdicts">
+    <div class="card-header-row">
+      <div class="card-header">
+        <i data-lucide="list-checks" style="width:13px;height:13px"></i>
+        <span data-i18n="derniers_verdicts">Derniers verdicts</span>
+      </div>
+    </div>
+    <div class="verdicts-list" id="verdicts-list"></div>
+  </div>
+
+</div>
+{% endblock %}

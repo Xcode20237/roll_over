@@ -1,0 +1,75 @@
+services:
+  # 1. Le Disque Dur Intelligent (MinIO)
+  minio:
+    image: minio/minio:latest
+    container_name: minio_storage
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      - MINIO_ROOT_USER=admin_vision
+      - MINIO_ROOT_PASSWORD=password123
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    networks:
+      - vision_network
+
+  # 2. Le Bureau de Poste (Broker MQTT)
+  mosquitto:
+    image: eclipse-mosquitto
+    platform: linux/amd64
+    container_name: mosquitto
+    restart: always
+    ports:
+      - "18830:1883"
+      - "9002:9001"
+    volumes:
+      - ./config:/mosquitto/config
+      - ./data:/mosquitto/data
+      - ./log:/mosquitto/log
+    networks:
+      - vision_network
+
+  # 3. La Base de Données (PostgreSQL)
+  postgres:
+    image: postgres:15
+    container_name: postgres_db
+    restart: always
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=admin_bdd
+      - POSTGRES_PASSWORD=password123
+      - POSTGRES_DB=vision_system
+    volumes:
+      - postgres_data:/var/lib/postgresql/data # Persistance des données
+    networks:
+      - vision_network
+
+  # 4. L'Interface de Gestion (pgAdmin)
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: pgadmin_ui
+    restart: always
+    ports:
+      - "8080:80"
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=admin@vision.com
+      - PGADMIN_DEFAULT_PASSWORD=admin
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin # Sauvegarde vos connexions serveurs
+    depends_on:
+      - postgres
+    networks:
+      - vision_network
+
+# Définition des ressources partagées
+networks:
+  vision_network:
+    driver: bridge
+
+volumes:
+  postgres_data: # Stocke les tables SQL
+  minio_data:    # Stocke les fichiers MinIO
+  pgadmin_data:  # Stocke la config de pgAdmin

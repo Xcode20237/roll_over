@@ -1,0 +1,70 @@
+{
+  "type_bouteille": "Type_A",
+  "description": "encore moi",
+  "service": "check_position",
+  "version": 1,
+  "created_at": "2026-03-19T17:53:45.985020",
+  "calibration_globale": {
+    "pixels_per_mm": 1.0,
+    "clahe_clip": 2.5,
+    "clahe_tile": 8
+  },
+  "defauts": [
+    {
+      "id_defaut": "CP1.1",
+      "label": "Mauvais positionnement bouteille",
+      "severite": "Critique",
+      "actif": true,
+      "algorithme": "symmetry_canny",
+      "acquisition": {
+        "mode": "unique",
+        "etage": 1,
+        "angles_requis": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8
+        ]
+      },
+      "reference_image": "",
+      "alignment": {
+        "use_alignment": true,
+        "x": 66,
+        "y": 209,
+        "width": 45,
+        "height": 28,
+        "anchor_center_y": 223.0,
+        "max_transl": 40.0,
+        "search_margin": 40.0,
+        "tm_threshold": 0.6,
+        "scale_min": 0.97,
+        "scale_max": 1.03,
+        "scale_steps": 5,
+        "debug": false
+      },
+      "rois": [
+        {
+          "id": 0,
+          "type": "position",
+          "name": "POSITION_0",
+          "x": 0,
+          "y": 0,
+          "width": 319,
+          "height": 199,
+          "color": [
+            0,
+            255,
+            0
+          ],
+          "canny_low": 0,
+          "canny_high": 67,
+          "tolerance_ecart_px": 17.0
+        }
+      ]
+    }
+  ]
+}

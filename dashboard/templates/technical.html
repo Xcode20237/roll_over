@@ -1,0 +1,218 @@
+{% extends "base.html" %}
+{% block title %}Vue Technique{% endblock %}
+
+{% block content %}
+<div class="grid-technical">
+
+  <!-- ── PIPELINE ─────────────────────────────────────────────── -->
+  <div class="card card-pipeline">
+    <div class="card-header">
+      <i data-lucide="git-branch" style="width:13px;height:13px"></i>
+      <span data-i18n="pipeline">Pipeline</span>
+    </div>
+    <div class="pipeline" id="pipeline">
+
+      <!-- Orchestrateur -->
+      <div class="pipe-node pipe-node-acq" id="pipe-orchestrateur">
+        <div class="pipe-icon">
+          <i data-lucide="shuffle" style="width:15px;height:15px;color:var(--text-secondary)"></i>
+        </div>
+        <div class="pipe-name">Orchestrateur</div>
+        <div class="pipe-status" id="pipe-status-orchestrateur">—</div>
+      </div>
+      <div class="pipe-arrow">↓</div>
+
+      <!-- Check Position -->
+      <div class="pipe-node pipe-node-check" id="pipe-check_position">
+        <div class="pipe-icon">
+          <i data-lucide="crosshair" style="width:15px;height:15px;color:var(--warn)"></i>
+        </div>
+        <div class="pipe-name">Check Position</div>
+        <div class="pipe-status" id="pipe-status-check_position">—</div>
+        <div class="pipe-lat"   id="pipe-lat-check_position"></div>
+      </div>
+
+      <!-- Panneau check inline -->
+      <div id="check-position-panel" class="check-panel check-panel-idle" style="margin:4px 0;font-size:11px">
+        <span class="check-icon"><i data-lucide="crosshair" style="width:13px;height:13px"></i></span>
+        <span class="check-label">Check</span>
+        <span class="check-status check-idle">—</span>
+      </div>
+      <div class="pipe-arrow">↓</div>
+
+      <!-- Services parallèles -->
+      <div class="pipe-row">
+        <div class="pipe-node" id="pipe-colorimetrique">
+          <div class="pipe-icon">
+            <i data-lucide="palette" style="width:13px;height:13px;color:#75aaff"></i>
+          </div>
+          <div class="pipe-name" data-i18n="colorimetrique">Color.</div>
+          <div class="pipe-status" id="pipe-status-colorimetrique">—</div>
+          <div class="pipe-lat"   id="pipe-lat-colorimetrique"></div>
+        </div>
+        <div class="pipe-node" id="pipe-gradient">
+          <div class="pipe-icon">
+            <i data-lucide="waves" style="width:13px;height:13px;color:#00e5cc"></i>
+          </div>
+          <div class="pipe-name" data-i18n="gradient">Grad.</div>
+          <div class="pipe-status" id="pipe-status-gradient">—</div>
+          <div class="pipe-lat"   id="pipe-lat-gradient"></div>
+        </div>
+        <div class="pipe-node" id="pipe-geometrique">
+          <div class="pipe-icon">
+            <i data-lucide="pentagon" style="width:13px;height:13px;color:#ffb778"></i>
+          </div>
+          <div class="pipe-name" data-i18n="geometrique">Géom.</div>
+          <div class="pipe-status" id="pipe-status-geometrique">—</div>
+          <div class="pipe-lat"   id="pipe-lat-geometrique"></div>
+        </div>
+        <div class="pipe-node" id="pipe-ia">
+          <div class="pipe-icon">
+            <i data-lucide="brain-circuit" style="width:13px;height:13px;color:#c084fc"></i>
+          </div>
+          <div class="pipe-name">IA</div>
+          <div class="pipe-status" id="pipe-status-ia">—</div>
+          <div class="pipe-lat"   id="pipe-lat-ia"></div>
+        </div>
+      </div>
+      <div class="pipe-arrow">↓</div>
+
+      <!-- Décision -->
+      <div class="pipe-node pipe-node-final" id="pipe-decision">
+        <div class="pipe-icon">
+          <i data-lucide="scale" style="width:15px;height:15px;color:var(--primary)"></i>
+        </div>
+        <div class="pipe-name" data-i18n="decision">Décision Finale</div>
+        <div class="pipe-status" id="pipe-status-decision">—</div>
+      </div>
+      <div class="pipe-arrow">↓</div>
+
+      <!-- PLC / BDD -->
+      <div class="pipe-node pipe-node-plc">
+        <div class="pipe-icon">
+          <i data-lucide="server" style="width:15px;height:15px;color:var(--text-muted)"></i>
+        </div>
+        <div class="pipe-name">PLC / BDD</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── BOUTEILLE EN COURS ────────────────────────────────────── -->
+  <div class="card card-active-tech">
+    <div class="card-header">
+      <i data-lucide="package" style="width:13px;height:13px"></i>
+      <span data-i18n="en_cours">Bouteille en cours</span>
+    </div>
+    <div id="active-bottle-tech" class="active-bottle-idle">
+      <i data-lucide="package-open" style="width:18px;height:18px;opacity:.4"></i>
+      <span data-i18n="en_attente">En attente...</span>
+    </div>
+  </div>
+
+  <!-- ── STATS + GRAPHIQUES ───────────────────────────────────── -->
+  <div class="card card-stats-tech">
+    <div class="card-header">
+      <i data-lucide="bar-chart-2" style="width:13px;height:13px"></i>
+      <span data-i18n="statistiques">Statistiques du jour</span>
+    </div>
+    <div class="kpi-row">
+      <div class="kpi-box">
+        <div class="kpi-val" id="kpi-total">—</div>
+        <div class="kpi-lbl" data-i18n="total">Total</div>
+      </div>
+      <div class="kpi-box ok">
+        <div class="kpi-val" id="kpi-ok">—</div>
+        <div class="kpi-lbl">OK</div>
+      </div>
+      <div class="kpi-box ng">
+        <div class="kpi-val" id="kpi-ng">—</div>
+        <div class="kpi-lbl">NG</div>
+      </div>
+      <div class="kpi-box">
+        <div class="kpi-val" id="kpi-cadence">—</div>
+        <div class="kpi-lbl" data-i18n="cadence">btl/min</div>
+      </div>
+      <div class="kpi-box">
+        <div class="kpi-val" id="kpi-tps">—</div>
+        <div class="kpi-lbl" data-i18n="tps_moyen">tps moy (s)</div>
+      </div>
+    </div>
+    <div class="charts-row">
+      <div class="chart-wrap">
+        <div class="chart-title" data-i18n="evolution_ng">Taux NG (%)</div>
+        <canvas id="chart-ng-evolution" height="160"></canvas>
+      </div>
+      <div class="chart-wrap">
+        <div class="chart-title" data-i18n="ng_par_defaut">NG par défaut</div>
+        <canvas id="chart-ng-defauts" height="160"></canvas>
+      </div>
+      <div class="chart-wrap">
+        <div class="chart-title" data-i18n="par_type">Par type</div>
+        <canvas id="chart-par-type" height="160"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── VERDICTS AVEC FILTRES ────────────────────────────────── -->
+  <div class="card card-verdicts-tech">
+    <div class="card-header-row">
+      <div class="card-header">
+        <i data-lucide="table-2" style="width:13px;height:13px"></i>
+        <span data-i18n="verdicts_recents">Verdicts récents</span>
+      </div>
+      <div class="filters-inline">
+        <select id="filter-type" class="filter-sel">
+          <option value="" data-i18n="tous_types">Tous types</option>
+        </select>
+        <select id="filter-verdict" class="filter-sel">
+          <option value="">OK + NG</option>
+          <option value="OK">OK</option>
+          <option value="NG">NG</option>
+        </select>
+        <button class="btn-sm" onclick="filterVerdicts()" data-i18n="filtrer">Filtrer</button>
+      </div>
+    </div>
+    <div class="verdicts-table-wrap">
+      <table class="verdicts-table">
+        <thead>
+          <tr>
+            <th data-i18n="heure">Heure</th>
+            <th data-i18n="id">ID</th>
+            <th data-i18n="type">Type</th>
+            <th data-i18n="verdict">Verdict</th>
+            <th data-i18n="defauts">Défauts NG</th>
+            <th data-i18n="duree">Durée</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="verdicts-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── CONFIG ALERTES ───────────────────────────────────────── -->
+  <div class="card card-alertes-config">
+    <div class="card-header">
+      <i data-lucide="bell-ring" style="width:13px;height:13px"></i>
+      <span data-i18n="config_alertes">Configuration alertes</span>
+    </div>
+    <div class="alertes-form">
+      <label data-i18n="seuil_ng">Seuil NG (%)</label>
+      <input type="number" id="cfg-ng-pct" class="cfg-input" value="10" min="1" max="100">
+      <label data-i18n="fenetre">Fenêtre (btl)</label>
+      <input type="number" id="cfg-window" class="cfg-input" value="20" min="5" max="200">
+      <label data-i18n="son_alerte">Son d'alerte</label>
+      <input type="checkbox" id="cfg-son" checked>
+      <button class="btn-primary" onclick="saveConfigAlertes()">
+        <i data-lucide="save" style="width:13px;height:13px"></i>
+        <span data-i18n="sauvegarder">Sauvegarder</span>
+      </button>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/technical.js"></script>
+{% endblock %}
