@@ -72,10 +72,10 @@ Write-Host ""
 # ─────────────────────────────────────────────────────────────
 # 5. Mise à jour de pip
 # ─────────────────────────────────────────────────────────────
-$pipExe = Join-Path $venvPath "Scripts\pip.exe"
+$pythonVenvExe = Join-Path $venvPath "Scripts\python.exe"
 
 Write-Host "📦 Mise à jour de pip..." -ForegroundColor Yellow
-& $pipExe install --upgrade pip | Out-Null
+& $pythonVenvExe -m pip install --upgrade pip | Out-Null
 Write-Host "   ✅ pip mis à jour." -ForegroundColor Green
 Write-Host ""
 
@@ -85,17 +85,27 @@ Write-Host ""
 Write-Host "📦 Installation des dépendances depuis requirements.txt..." -ForegroundColor Yellow
 Write-Host ""
 
-& $pipExe install -r $requirementsPath
+& $pythonVenvExe -m pip install -r $requirementsPath
 
 if ($LASTEXITCODE -eq 0) {
     Write-Host ""
     Write-Host "   ✅ Toutes les dépendances ont été installées avec succès." -ForegroundColor Green
 } else {
     Write-Host ""
-    Write-Host "   ❌ Une erreur s'est produite lors de l'installation." -ForegroundColor Red
+    Write-Host "   ❌ Une erreur s'est produite lors de l'installation des dépendances." -ForegroundColor Red
     Write-Host "      Consultez les messages ci-dessus pour plus de détails." -ForegroundColor Red
     pause
     exit 1
+}
+Write-Host ""
+
+Write-Host "📦 Installation du projet en mode éditable..." -ForegroundColor Yellow
+& $pythonVenvExe -m pip install -e .
+
+if ($LASTEXITCODE -eq 0) {
+    Write-Host "   ✅ Projet installé en mode éditable avec succès." -ForegroundColor Green
+} else {
+    Write-Host "   ❌ Erreur lors de l'installation du projet." -ForegroundColor Red
 }
 Write-Host ""
 

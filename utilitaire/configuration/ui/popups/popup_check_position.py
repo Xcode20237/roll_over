@@ -8,8 +8,7 @@ Affiche : Original | Contours Canny | Axe de symétrie annoté
 
 Sliders :
   Canny low, Canny high
-  Tolérance écart axe/centre
-   (pixels)
+  Tolérance écart axe/centre (pixels)
 
 Affichage live :
   Axe de symétrie détecté

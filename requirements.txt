@@ -5,12 +5,10 @@
 # Installer avec : pip install -r requirements.txt
 # ============================================================
 
-# --- Installation locale du module partagé (Dossier shared/) ---
--e .
+
 
 # --- Traitement d'image ---
-opencv-python>=4.8.0
-numpy>=1.24.0
+opencv-python>=4.8.0numpy>=1.24.0
 
 # --- Interface graphique (outils de test/calibration) ---
 Pillow>=10.0.0
