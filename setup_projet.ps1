@@ -3,7 +3,12 @@
 # =============================================================================
 # Usage : Clic droit → "Exécuter avec PowerShell"
 #         OU dans un terminal PowerShell : .\setup_projet.ps1
+#         OU avec un Python spécifique : .\setup_projet.ps1 -PythonExe "C:\chemin\vers\python.exe"
 # =============================================================================
+
+param (
+    [string]$PythonExe = "python"
+)
 
 $ErrorActionPreference = "Stop"
 
@@ -19,8 +24,8 @@ Write-Host ""
 Write-Host "🔍 Vérification de Python..." -ForegroundColor Yellow
 
 try {
-    $pythonVersion = python --version 2>&1
-    Write-Host "   ✅ $pythonVersion détecté." -ForegroundColor Green
+    $pythonVersion = & $PythonExe --version 2>&1
+    Write-Host "   ✅ $pythonVersion détecté (via $PythonExe)." -ForegroundColor Green
 } catch {
     Write-Host "   ❌ Python n'est pas installé ou introuvable dans le PATH." -ForegroundColor Red
     Write-Host "      → Téléchargez Python 3.10+ depuis https://www.python.org/downloads/" -ForegroundColor Red
@@ -49,7 +54,7 @@ if (Test-Path $venvPath) {
     Write-Host "⚙️  Environnement virtuel (.venv) déjà existant — réutilisation." -ForegroundColor Yellow
 } else {
     Write-Host "⚙️  Création de l'environnement virtuel (.venv)..." -ForegroundColor Yellow
-    python -m venv $venvPath
+    & $PythonExe -m venv $venvPath
     Write-Host "   ✅ Environnement virtuel créé." -ForegroundColor Green
 }
 Write-Host ""

@@ -30,9 +30,19 @@ L'installation est automatisée via un script PowerShell. Ce script va :
 - Installer toutes les dépendances listées dans `requirements.txt` (y compris le module partagé `shared` en mode `-e .`).
 
 ### Étape 2.1 — Lancer le Setup
+
+**Méthode 1 : Classique (si Python est installé par défaut)**
 1. Ouvrez le dossier du projet dans l'Explorateur Windows.
 2. Faites un clic-droit sur le fichier **`setup_projet.ps1`**.
 3. Choisissez **"Exécuter avec PowerShell"**.
+
+**Méthode 2 : Forcer une version spécifique de Python (installations personnalisées)**
+Si vous avez installé plusieurs versions de Python dans des répertoires particuliers, vous pouvez forcer le script à utiliser l'exécutable de votre choix pour créer l'environnement :
+1. Ouvrez un terminal PowerShell dans le dossier du projet.
+2. Exécutez le script avec l'argument `-PythonExe` et votre chemin :
+   ```powershell
+   .\setup_projet.ps1 -PythonExe "C:\Chemin\Vers\Votre\python.exe"
+   ```
 
 *(Si PowerShell bloque l'exécution, ouvrez PowerShell en Administrateur et tapez : `Set-ExecutionPolicy Unrestricted`, répondez 'Oui', puis relancez le script).*
 
