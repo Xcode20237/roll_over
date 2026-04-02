@@ -21,6 +21,7 @@ dist/
 dossier_reception_ftp/
 data/
 log/
+config/
 *.log
 
 # --- Système d'exploitation ---
