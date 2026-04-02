@@ -415,7 +415,7 @@ def create_engine(defaut: DefautConfig,
     from shared.engines.engine_check_position  import EngineCheckPosition
 
     algo = defaut.algorithme
-    if algo == "presence_hsv":
+    if algo in ("presence_hsv", "orientation_masque"):
         return EngineColorimetrique(defaut, ref_image)
     elif algo == "niveau_sobel":
         return EngineGradient(defaut, ref_image)
