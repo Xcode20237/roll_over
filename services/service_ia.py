@@ -20,11 +20,12 @@ load_dotenv()
 MQTT_BROKER = os.getenv("MQTT_BROKER_HOST", "localhost")
 MQTT_PORT   = int(os.getenv("MQTT_BROKER_PORT", 1883))
 
-TOPIC_ENTREE = os.getenv("TOPIC_SORTIE_FUSION",  "vision/ia/ready")
-TOPIC_SORTIE = os.getenv("TOPIC_SORTIE_IA",       "vision/resultats/ia")
-# Heartbeat — aligné avec les autres services (TOPIC_STATUS_BASE + "ia")
-TOPIC_STATUS_BASE = os.getenv("TOPIC_STATUS_BASE", "vision/status/")
-TOPIC_STATUS      = TOPIC_STATUS_BASE + "ia"
+TOPIC_ENTREE  = os.getenv("TOPIC_SORTIE_FUSION", "vision/ia/ready")
+TOPIC_SORTIE  = os.getenv("TOPIC_SORTIE_IA",    "vision/resultats/ia")
+TOPIC_STATUS  = os.getenv("TOPIC_STATUS_BASE",  "vision/status/") + "ia"
+TOPIC_VISU_IA = os.getenv("TOPIC_VISU_IA_TRAIT","vision/visu/ia/resultat")
+
+VISU_STEPS_PREFIX = os.getenv("VISU_STEPS_PREFIX", "visu_steps")
 
 MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT",  "localhost:9000")
 MINIO_USER     = os.getenv("MINIO_USER",      "admin_vision")
@@ -116,7 +117,57 @@ class IAInspectorHeadless:
             }
         }
 
-    def _run_model(self, panorama: np.ndarray) -> dict:
+    def annoter_panorama(self, panorama: np.ndarray,
+                          details_ia: dict) -> np.ndarray:
+        """
+        Génère une image annotée du panorama avec les résultats IA.
+        En mode placeholder : affiche le statut global + métriques.
+        En mode modèle ONNX : dessine les bounding boxes si disponibles.
+        """
+        vis = panorama.copy()
+        h, w = vis.shape[:2]
+
+        # Fond semi-transparent pour le texte
+        overlay = vis.copy()
+        cv2.rectangle(overlay, (0, 0), (w, 60), (0, 0, 0), -1)
+        cv2.addWeighted(overlay, 0.55, vis, 0.45, 0, vis)
+
+        # Statut global
+        statut_global = "OK"
+        for res in details_ia.values():
+            if res.get("status") == "NG":
+                statut_global = "NG"
+                break
+
+        color = (0, 220, 0) if statut_global == "OK" else (0, 0, 220)
+        cv2.putText(vis, f"IA — {statut_global}",
+                    (12, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.9, color, 2)
+
+        # Détails par ROI / détection
+        y_off = 55
+        for nom, res in details_ia.items():
+            score = res.get("score_confiance", 0)
+            mode  = res.get("mode", "?")
+            nb    = res.get("defauts_detectes", 0)
+            c     = (0, 220, 0) if res.get("status") == "OK" else (0, 0, 220)
+            cv2.putText(vis,
+                        f"{nom}: {res.get('status','?')}  "
+                        f"score={score:.3f}  defauts={nb}  [{mode}]",
+                        (12, y_off),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.45, c, 1)
+            y_off += 20
+
+            # Bounding boxes si disponibles (mode YOLO futur)
+            for bbox in res.get("bboxes", []):
+                x1, y1, x2, y2 = bbox.get("x1",0), bbox.get("y1",0), \
+                                  bbox.get("x2",0), bbox.get("y2",0)
+                label = bbox.get("label", "?")
+                conf  = bbox.get("confidence", 0)
+                cv2.rectangle(vis, (x1, y1), (x2, y2), (0, 0, 220), 2)
+                cv2.putText(vis, f"{label} {conf:.2f}",
+                            (x1, max(y1-6, 10)),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.42, (0,0,220), 1)
+        return vis
         """
         Inférence avec modèle ONNX chargé via OpenCV DNN.
 
@@ -267,6 +318,53 @@ class IAService:
             for nom, res in details_ia.items():
                 print(f"      {nom} : {res['status']} (confiance={res.get('score_confiance','?')}, mode={res.get('mode','?')})")
 
+            # --- Génération et sauvegarde image annotée ---
+            chemin_annote = ""
+            try:
+                img_annotee  = self.inspector.annoter_panorama(panorama, details_ia)
+                _, buf = cv2.imencode(".jpg", img_annotee,
+                                     [cv2.IMWRITE_JPEG_QUALITY, 88])
+                data_ann = buf.tobytes()
+                chemin_annote = (f"bouteilles_{type_bouteille}/{id_bouteille}/"
+                                 f"visu_steps/ia/resultat_annote.jpg")
+                self.minio.put_object(
+                    BUCKET_NAME, chemin_annote,
+                    io.BytesIO(data_ann), len(data_ann),
+                    content_type="image/jpeg"
+                )
+                print(f"   ✅ Image annotée IA sauvegardée : {chemin_annote}")
+            except Exception as e:
+                print(f"   ⚠️ Erreur sauvegarde image annotée IA : {e}")
+
+            # --- Publication visualisation IA ---
+            try:
+                detections = []
+                for nom, res in details_ia.items():
+                    detections.append({
+                        "label"      : nom,
+                        "status"     : res.get("status"),
+                        "confidence" : res.get("score_confiance", 0),
+                        "defauts_nb" : res.get("defauts_detectes", 0),
+                        "mode"       : res.get("mode"),
+                        "bboxes"     : res.get("bboxes", []),
+                    })
+                payload_visu = {
+                    "phase"          : "traitement",
+                    "id_bouteille"   : id_bouteille,
+                    "type_bouteille" : type_bouteille,
+                    "service"        : "ia",
+                    "verdict_global" : statut_global,
+                    "chemin_brute"   : chemin_objet,
+                    "chemin_annote"  : chemin_annote,
+                    "detections"     : detections,
+                    "duree_ms"       : duree_ms,
+                    "timestamp"      : datetime.now(timezone.utc)
+                                       .isoformat().replace("+00:00", "Z"),
+                }
+                self.mqtt.publish(TOPIC_VISU_IA, json.dumps(payload_visu))
+            except Exception as e:
+                print(f"   ⚠️ Erreur publish visu IA : {e}")
+
             # --- Publication résultat ---
             output = {
                 "id_bouteille":    id_bouteille,
@@ -309,15 +407,14 @@ class IAService:
 
     # ------------------------------------------------------------------
     def _heartbeat(self):
-        """Publie un statut toutes les 10 secondes — aligné avec les autres services."""
+        """Publie un statut toutes les 10 secondes."""
         while True:
             time.sleep(10)
             try:
                 self.mqtt.publish(TOPIC_STATUS, json.dumps({
-                    "service"  : "ia",
-                    "status"   : "OK",
-                    "mode"     : self.inspector.mode,
-                    "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+                    "service": "ia",
+                    "mode":    self.inspector.mode,
+                    "ts":      datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
                 }))
             except Exception:
                 pass

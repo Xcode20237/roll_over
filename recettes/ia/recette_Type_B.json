@@ -1,0 +1,10 @@
+{
+  "type_bouteille": "Type_B",
+  "description": "Configuration IA — Analyse panorama surface (placeholder YOLO)",
+  "service": "ia",
+  "version": 1,
+  "grille_capture": {
+    "etages_attendus": [1],
+    "angles_attendus": [1, 2, 3, 4, 5, 6, 7, 8]
+  }
+}

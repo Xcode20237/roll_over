@@ -3,9 +3,10 @@ minio_reader.py — Récupération d'images depuis MinIO en base64 pour l'UI web
 """
 from __future__ import annotations
 import base64
+from datetime import timedelta
 from typing import Optional
 
-from config import MINIO_ENDPOINT, MINIO_USER, MINIO_PASS
+from config import MINIO_ENDPOINT, MINIO_USER, MINIO_PASS, BUCKET_NAME
 
 try:
     from minio import Minio
@@ -32,3 +33,18 @@ def get_image_b64(bucket: str, chemin: str) -> Optional[str]:
     except Exception as e:
         print(f"[MinIO] Erreur {bucket}/{chemin}: {e}")
         return None
+
+
+def get_presigned_url(chemin: str, expires_sec: int = 300) -> str:
+    """
+    Retourne une URL présignée valable expires_sec secondes pour
+    afficher l'image directement dans le navigateur via <img src=...>.
+    Utilise le bucket par défaut configuré dans .env (BUCKET_NAME).
+    """
+    if not MINIO_OK:
+        raise RuntimeError("MinIO non disponible")
+    url = _client.presigned_get_object(
+        BUCKET_NAME, chemin,
+        expires=timedelta(seconds=expires_sec)
+    )
+    return url

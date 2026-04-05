@@ -24,13 +24,13 @@ MQTT_PORT = int(os.getenv("MQTT_BROKER_PORT", 1883))
 
 # Topics MQTT
 TOPIC_ENTREE = os.getenv("TOPIC_ENTREE_FUSION", "vision/ia/pretraitement")
-TOPIC_SORTIE_RUN = os.getenv("TOPIC_SORTIE_FUSION", "vision/ia/ready")
+TOPIC_SORTIE_RUN   = os.getenv("TOPIC_SORTIE_FUSION", "vision/ia/ready")
 TOPIC_SORTIE_LEARN = "vision/ia/dataset_collected"
-TOPIC_CONFIG_MODE = os.getenv("TOPIC_CONFIG_MODE_IA", "vision/config/mode_ia")
+TOPIC_CONFIG_MODE  = os.getenv("TOPIC_CONFIG_MODE_IA", "vision/config/mode_ia")
 
-# check_position — fusion s'y abonne pour récupérer l'écart de positionnement
-# et effectuer un recadrage asymétrique de la bouteille dans le panorama
-TOPIC_CHECK_POSITION = os.getenv("TOPIC_SORTIE_CHECK_POSITION", "vision/check/position")
+# Topics visualisation temps réel
+TOPIC_VISU_IMAGE = os.getenv("TOPIC_VISU_FUSION_IMAGE", "vision/visu/fusion/image_brute")
+TOPIC_VISU_TRAIT = os.getenv("TOPIC_VISU_FUSION_TRAIT", "vision/visu/fusion/traitement")
 
 # Connexion MinIO
 MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT", "localhost:9000")
@@ -60,40 +60,25 @@ class CylindricalUnwrapperHeadless:
         self.fov_deg = fov_deg
         self.angle_secteur_deg = 360.0 / nb_angles
 
-    def unwrap_slice(self, img: np.ndarray,
-                     ecart_px: float = 0.0) -> np.ndarray:
-        """
-        Déroule la courbure ET extrait uniquement la bande utile (Formule Exacte).
-
-        ecart_px : écart de positionnement fourni par check_position (signé).
-          Positif → bouteille décalée à droite → on rogne plus à gauche
-          Négatif → bouteille décalée à gauche  → on rogne plus à droite
-        """
+    def unwrap_slice(self, img: np.ndarray) -> np.ndarray:
+        """Déroule la courbure ET extrait uniquement la bande utile (Formule Exacte)"""
         h_src, w_src = img.shape[:2]
         
         # 1. Calculs Géométriques Préliminaires
         hfov_physique = 2 * self.d * math.tan(math.radians(self.fov_deg) / 2.0)
         beta_rad = math.radians((180.0 - self.angle_secteur_deg) / 2.0)
         
-        # 2. Calcul du Crop (Rognage) symétrique de base
+        # 2. Calcul du Crop (Rognahe) optimal
         fraction_centrale = (self.D * self.d * math.cos(beta_rad)) / (hfov_physique * (2 * self.d - self.D * math.sin(beta_rad)))
-        crop_base = (0.5 - fraction_centrale) * w_src
-
-        # 3. Correction asymétrique selon l'écart de positionnement
-        #    ecart_px > 0 → bouteille à droite → rogne plus à gauche, moins à droite
-        #    ecart_px < 0 → bouteille à gauche → rogne plus à droite, moins à gauche
-        crop_gauche = int(max(0, crop_base + ecart_px))
-        crop_droite = int(max(0, crop_base - ecart_px))
-
-        w_bande_dest = w_src - crop_gauche - crop_droite
+        crop_pixels = (0.5 - fraction_centrale) * w_src
+        w_bande_dest = int(w_src - 2 * crop_pixels)
         
         if w_bande_dest <= 0:
+            # Sécurité pour éviter le crash si les paramètres sont incohérents
             print("⚠️ AVERTISSEMENT MATH : Largeur calculée <= 0. Utilisation de 10px par défaut.")
             w_bande_dest = 10
-            crop_gauche  = (w_src - 10) // 2
-            crop_droite  = w_src - 10 - crop_gauche
 
-        # 4. Projection Inverse 3D -> 2D (Remapping)
+        # 3. Projection Inverse 3D -> 2D (Remapping)
         f_px = (w_src / 2.0) / math.tan(math.radians(self.fov_deg) / 2.0)
         cx, cy = w_src / 2.0, h_src / 2.0
         R = self.D / 2.0
@@ -156,12 +141,10 @@ class CylindricalUnwrapperHeadless:
         
         return np.vstack([top, blended, bottom])
 
-    def process_all_in_ram(self, images_dict: Dict[int, Dict[int, np.ndarray]],
-                            ecart_px: float = 0.0) -> np.ndarray:
+    def process_all_in_ram(self, images_dict: Dict[int, Dict[int, np.ndarray]]) -> np.ndarray:
         """
         Orchestre tout le processus : Déroulement Horizontal -> Fusion Verticale.
         Entrée : Dictionnaire { Num_Etage : { Num_Angle : Image_Matrice } }
-        ecart_px : écart de positionnement (signé) depuis check_position
         Sortie : Image Finale Matrice
         """
         etages_panoramas = {}
@@ -169,12 +152,13 @@ class CylindricalUnwrapperHeadless:
         # 1. Assemblage Horizontal (Création des bandes pour chaque étage)
         for etage in sorted(images_dict.keys()):
             bandes_rectifiees = []
+            # On trie par angle croissant (1, 2, 3...)
             for angle in sorted(images_dict[etage].keys()):
-                img   = images_dict[etage][angle]
-                # Recadrage asymétrique appliqué sur chaque bande
-                bande = self.unwrap_slice(img, ecart_px=ecart_px)
+                img = images_dict[etage][angle]
+                bande = self.unwrap_slice(img)
                 bandes_rectifiees.append(bande)
             
+            # Concaténation simple côte à côte
             etages_panoramas[etage] = cv2.hconcat(bandes_rectifiees)
 
         # 2. Assemblage Vertical (Fusion intelligente)
@@ -239,45 +223,15 @@ class FusionIAService:
 
     def on_connect(self, client, userdata, flags, rc, properties=None):
         print(f"✅ Connecté MQTT (Code: {rc})")
-        self.mqtt.subscribe([
-            (TOPIC_ENTREE,          0),
-            (TOPIC_CONFIG_MODE,     0),
-            (TOPIC_CHECK_POSITION,  0),   # pour récupérer l'écart de positionnement
-        ])
-        print(f"🎧 Écoute Flux Images    : {TOPIC_ENTREE}")
-        print(f"🎧 Écoute Commandes      : {TOPIC_CONFIG_MODE}")
-        print(f"🎧 Écoute Check Position : {TOPIC_CHECK_POSITION}")
+        # Abonnement aux données d'images ET au topic de configuration
+        self.mqtt.subscribe([(TOPIC_ENTREE, 0), (TOPIC_CONFIG_MODE, 0)])
+        print(f"🎧 Écoute Flux Images : {TOPIC_ENTREE}")
+        print(f"🎧 Écoute Commandes  : {TOPIC_CONFIG_MODE}")
 
     def on_message(self, client, userdata, msg):
         try:
             topic = msg.topic
             payload_str = msg.payload.decode()
-
-            # ── Verdict check_position → stocker l'écart dans le buffer ──
-            if topic == TOPIC_CHECK_POSITION:
-                try:
-                    payload      = json.loads(payload_str)
-                    id_bouteille = str(payload.get("id_bouteille", "?"))
-                    ecart_px     = float(payload.get("ecart_position_px", 0.0))
-                    verdict      = payload.get("verdict_global",
-                                               payload.get("status", "NG"))
-                    with self.buffer_lock:
-                        if id_bouteille not in self.buffer:
-                            # Pré-créer l'entrée pour stocker l'écart en avance
-                            self.buffer[id_bouteille] = {
-                                "type"     : payload.get("type_bouteille", "?"),
-                                "images"   : {},
-                                "timestamp": time.time(),
-                                "ecart_px" : ecart_px,
-                            }
-                        else:
-                            self.buffer[id_bouteille]["ecart_px"] = ecart_px
-
-                    print(f"   🎯 [Fusion] check_position reçu → "
-                          f"{id_bouteille} : {verdict} (ecart={ecart_px:+.1f}px)")
-                except Exception as e:
-                    print(f"❌ Erreur traitement check_position : {e}")
-                return
 
             # --- CAS 1 : COMMANDE DE CHANGEMENT DE MODE ---
             if topic == TOPIC_CONFIG_MODE:
@@ -331,18 +285,53 @@ class FusionIAService:
             with self.buffer_lock:
                 if id_bouteille not in self.buffer:
                     self.buffer[id_bouteille] = {
-                        "type"     : type_bouteille,
-                        "images"   : {},
-                        "timestamp": time.time(),
-                        "ecart_px" : 0.0,   # sera mis à jour par check_position
+                        "type"      : type_bouteille,
+                        "images"    : {},
+                        "chemins"   : {},    # chemin MinIO par etage/angle
+                        "timestamp" : time.time()
                     }
-                
+
                 if etage not in self.buffer[id_bouteille]["images"]:
                     self.buffer[id_bouteille]["images"][etage] = {}
-                    
+                if etage not in self.buffer[id_bouteille]["chemins"]:
+                    self.buffer[id_bouteille]["chemins"][etage] = {}
+
                 self.buffer[id_bouteille]["images"][etage][angle] = img_array
+                self.buffer[id_bouteille]["chemins"][etage][angle] = chemin_minio
                 self.buffer[id_bouteille]["timestamp"] = time.time()
-                
+
+                # Compter images reçues pour la progression
+                recette_loc = self.get_recette(type_bouteille)
+                nb_attendus = 0
+                nb_recus    = 0
+                if recette_loc:
+                    for e in recette_loc["grille_capture"]["etages_attendus"]:
+                        for a in recette_loc["grille_capture"]["angles_attendus"]:
+                            nb_attendus += 1
+                            if (e in self.buffer[id_bouteille]["images"] and
+                                    a in self.buffer[id_bouteille]["images"][e]):
+                                nb_recus += 1
+
+                # Publish visualisation image_brute
+                try:
+                    payload_visu = {
+                        "phase"              : "image_brute",
+                        "id_bouteille"       : id_bouteille,
+                        "type_bouteille"     : type_bouteille,
+                        "service"            : "fusion",
+                        "etage"              : etage,
+                        "angle"              : angle,
+                        "chemin_brute"       : chemin_minio,
+                        "nb_images_recues"   : nb_recus,
+                        "nb_images_attendues": nb_attendus,
+                        "timestamp"          : datetime.now(timezone.utc)
+                                               .isoformat().replace("+00:00", "Z"),
+                    }
+                    self.mqtt.publish(TOPIC_VISU_IMAGE,
+                                      json.dumps(payload_visu))
+                except Exception as ve:
+                    print(f"[fusion] Erreur publish visu image: {ve}")
+
                 self.check_trigger(id_bouteille)
 
         except json.JSONDecodeError:
@@ -393,25 +382,22 @@ class FusionIAService:
             return
 
         type_bouteille = data["type"]
-        ecart_px       = data.get("ecart_px", 0.0)
         recette = self.get_recette(type_bouteille)
         if not recette:
             return
         dims = recette["dimensions_physiques"]
+        # On calcule le nombre d'angles depuis la liste attendue
         nb_angles = len(recette["grille_capture"]["angles_attendus"])
 
         try:
-            # 1. Fusion Mathématique avec recadrage asymétrique
+            # 1. Fusion Mathématique
             unwrapper = CylindricalUnwrapperHeadless(
                 diametre_mm=dims["diametre_mm"],
                 distance_mm=dims["distance_camera_mm"],
                 fov_deg=dims["fov_camera_deg"],
                 nb_angles=nb_angles
             )
-            if ecart_px != 0.0:
-                print(f"   🎯 Recadrage asymétrique appliqué : ecart={ecart_px:+.1f}px")
-            image_finale = unwrapper.process_all_in_ram(data["images"],
-                                                         ecart_px=ecart_px)
+            image_finale = unwrapper.process_all_in_ram(data["images"])
 
             # 2. Gestion du Stockage MinIO selon le MODE
             dossier_cible = "fusion_ia"  # Par défaut (RUN)
@@ -435,6 +421,37 @@ class FusionIAService:
                 content_type="image/jpeg"
             )
             print(f"   ✅ Image fusionnée uploadée : {chemin_fusion}")
+
+            # Publish visualisation traitement fusion
+            try:
+                # Compter le total d'images utilisées
+                total_imgs = sum(
+                    len(angles_dict)
+                    for angles_dict in data["images"].values()
+                )
+                # Collecter les chemins sources dans l'ordre étage/angle
+                chemins_sources = []
+                for etage in sorted(data["chemins"].keys()):
+                    for angle in sorted(data["chemins"][etage].keys()):
+                        chemin_src = data["chemins"][etage][angle]
+                        if chemin_src:
+                            chemins_sources.append(chemin_src)
+
+                payload_visu_trait = {
+                    "phase"           : "traitement",
+                    "id_bouteille"    : id_bouteille,
+                    "type_bouteille"  : type_bouteille,
+                    "service"         : "fusion",
+                    "chemin_fusion"   : chemin_fusion,
+                    "chemins_sources" : chemins_sources,
+                    "nb_images"       : total_imgs,
+                    "timestamp"       : datetime.now(timezone.utc)
+                                       .isoformat().replace("+00:00", "Z"),
+                }
+                self.mqtt.publish(TOPIC_VISU_TRAIT,
+                                  json.dumps(payload_visu_trait))
+            except Exception as ve:
+                print(f"[fusion] Erreur publish visu traitement: {ve}")
 
             # 3. Notification MQTT selon le MODE
             payload_sortie = {

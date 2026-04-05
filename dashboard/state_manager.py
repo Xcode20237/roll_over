@@ -90,6 +90,25 @@ class StateManager:
         # ── Compteur alertes pour IDs uniques ─────────────────────────
         self._alerte_counter = 0
 
+        # ── Visualisations temps réel par service ─────────────────────
+        # Stocke pour chaque service :
+        #   - la dernière session complète (traitement reçu)
+        #   - les images brutes en cours (avant traitement)
+        # Clé = SERVICE_NAME
+        self.visualisations : Dict[str, Optional[Dict]] = {
+            "colorimetrique" : None,
+            "gradient"       : None,
+            "geometrique"    : None,
+            "check_position" : None,
+            "fusion"         : None,
+            "ia"             : None,
+        }
+        # Buffer images brutes en cours d'accumulation par service
+        # { service: { id_bouteille: { id_defaut: { angle: payload_image_brute } } } }
+        self.visu_buffer_brut : Dict[str, Dict] = {
+            svc: {} for svc in self.visualisations
+        }
+
         # Thread watchdog services
         threading.Thread(target=self._watchdog_services,
                          daemon=True).start()
@@ -167,7 +186,71 @@ class StateManager:
         with self._lock:
             return dict(self.last_check_position)
 
-    def verdict_final(self, payload: dict):
+    # ──────────────────────────────────────────────────────────────────
+    # Visualisations temps réel
+    # ──────────────────────────────────────────────────────────────────
+
+    def visu_image_brute_recu(self, service: str, payload: dict):
+        """
+        Stocke une image brute reçue dans le buffer de visualisation.
+        Appelé dès qu'une image entre dans le garbage du service.
+        """
+        with self._lock:
+            if service not in self.visu_buffer_brut:
+                return
+            id_btl    = str(payload.get("id_bouteille", "?"))
+            id_defaut = payload.get("id_defaut", "?")
+            angle     = payload.get("angle")
+
+            if id_btl not in self.visu_buffer_brut[service]:
+                self.visu_buffer_brut[service][id_btl] = {}
+            if id_defaut not in self.visu_buffer_brut[service][id_btl]:
+                self.visu_buffer_brut[service][id_btl][id_defaut] = {}
+            if angle is not None:
+                self.visu_buffer_brut[service][id_btl][id_defaut][str(angle)] = {
+                    "chemin_brute"  : payload.get("chemin_brute", ""),
+                    "angles_requis" : payload.get("angles_requis", []),
+                    "angles_recus"  : payload.get("angles_recus", []),
+                }
+
+    def visu_recu(self, service: str, payload: dict):
+        """
+        Stocke le résultat traitement complet pour un service.
+        Réinitialise le buffer brut de cette bouteille.
+        """
+        with self._lock:
+            if service not in self.visualisations:
+                return
+            id_btl = str(payload.get("id_bouteille", "?"))
+            self.visualisations[service] = {
+                "id_bouteille"  : id_btl,
+                "type_bouteille": payload.get("type_bouteille"),
+                "timestamp"     : payload.get("timestamp"),
+                "verdict_global": payload.get("verdict_global"),
+                "service"       : service,
+                "defauts"       : payload.get("defauts", []),
+                # Pour fusion et IA
+                "chemin_brute"  : payload.get("chemin_brute"),
+                "chemin_fusion" : payload.get("chemin_fusion"),
+                "chemins_sources": payload.get("chemins_sources", []),
+                "chemin_annote" : payload.get("chemin_annote"),
+                "detections"    : payload.get("detections", []),
+                "nb_images"     : payload.get("nb_images"),
+            }
+            # Nettoyer le buffer brut de cette bouteille
+            if service in self.visu_buffer_brut:
+                self.visu_buffer_brut[service].pop(id_btl, None)
+
+    def get_derniere_visu(self, service: str) -> Optional[Dict]:
+        """Retourne la dernière visualisation traitement pour un service."""
+        with self._lock:
+            return self.visualisations.get(service)
+
+    def get_visu_buffer_brut(self, service: str,
+                              id_bouteille: str) -> Optional[Dict]:
+        """Retourne le buffer d'images brutes en cours pour un service/bouteille."""
+        with self._lock:
+            return self.visu_buffer_brut.get(service, {}).get(id_bouteille)
         """Enregistre le verdict final et met à jour les stats."""
         with self._lock:
             # Enrichir avec temps de traitement
@@ -200,6 +283,25 @@ class StateManager:
     # ──────────────────────────────────────────────────────────────────
     # Statistiques
     # ──────────────────────────────────────────────────────────────────
+
+    def verdict_final(self, payload: dict):
+        """Enregistre le verdict final et met à jour les stats."""
+        with self._lock:
+            if self.bouteille_active:
+                duree = round(time.time() - self.bouteille_active["timestamp"], 2)
+                payload["duree_s"] = duree
+                self.stats["temps_traitement"].append(duree)
+            else:
+                payload["duree_s"] = None
+
+            payload["timestamp_display"] = datetime.now().strftime("%H:%M:%S")
+            self.verdicts.appendleft(payload)
+            self._update_stats(payload)
+            self.services["decision"]["derniere_activite"] = time.time()
+            self.services["decision"]["statut"] = "connecte"
+            self.bouteille_active = None
+
+        self._verifier_alertes()
 
     def _update_stats(self, payload: dict):
         """Met à jour les stats globales. Appelé sous _lock."""

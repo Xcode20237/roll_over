@@ -56,18 +56,28 @@ MINIO_USER         = os.getenv("MINIO_USER",               "admin_vision")
 MINIO_PASS         = os.getenv("MINIO_PASSWORD",           "password123")
 TIMEOUT_BUFFER     = float(os.getenv("TIMEOUT_BUFFER_SEC", 120.0))
 HEARTBEAT_INTERVAL = float(os.getenv("HEARTBEAT_INTERVAL_SEC", 10.0))
+BUCKET_NAME        = os.getenv("MINIO_BUCKET",         "production")
+VISU_STEPS_PREFIX  = os.getenv("VISU_STEPS_PREFIX",    "visu_steps")
 
 print(f"[service_base] TIMEOUT_BUFFER_SEC = {TIMEOUT_BUFFER}s")
 
-# Topic check_position — tous les services (sauf check_position lui-même)
-# s'abonnent pour recevoir le verdict de positionnement
-TOPIC_CHECK_POSITION = os.getenv("TOPIC_SORTIE_CHECK_POSITION",
-                                  "vision/check/position")
+# Topics visualisation temps réel — un dict indexé par SERVICE_NAME
+_VISU_TOPICS_IMAGE = {
+    "colorimetrique" : os.getenv("TOPIC_VISU_COLOR_IMAGE", "vision/visu/colorimetrique/image_brute"),
+    "gradient"       : os.getenv("TOPIC_VISU_GRAD_IMAGE",  "vision/visu/gradient/image_brute"),
+    "geometrique"    : os.getenv("TOPIC_VISU_GEO_IMAGE",   "vision/visu/geometrique/image_brute"),
+    "check_position" : os.getenv("TOPIC_VISU_CHECK_IMAGE", "vision/visu/check_position/image_brute"),
+}
+_VISU_TOPICS_TRAIT = {
+    "colorimetrique" : os.getenv("TOPIC_VISU_COLOR_TRAIT", "vision/visu/colorimetrique/traitement"),
+    "gradient"       : os.getenv("TOPIC_VISU_GRAD_TRAIT",  "vision/visu/gradient/traitement"),
+    "geometrique"    : os.getenv("TOPIC_VISU_GEO_TRAIT",   "vision/visu/geometrique/traitement"),
+    "check_position" : os.getenv("TOPIC_VISU_CHECK_TRAIT", "vision/visu/check_position/traitement"),
+}
 
-# Topic de statut — chaque service publie son heartbeat dessus
-# Format : valeur du .env + suffixe SERVICE_NAME
-# Ex : TOPIC_STATUS_BASE=vision/status/ → vision/status/colorimetrique
-TOPIC_STATUS_BASE  = os.getenv("TOPIC_STATUS_BASE", "vision/status/")
+# Topic check_position
+TOPIC_CHECK_POSITION = os.getenv("TOPIC_SORTIE_CHECK_POSITION", "vision/check/position")
+TOPIC_STATUS_BASE    = os.getenv("TOPIC_STATUS_BASE", "vision/status/")
 
 
 class ServiceBase:
@@ -192,7 +202,8 @@ class ServiceBase:
                           f"(E{etage}/A{angle}) — check NG ou buffer invalide")
                     return
 
-                self._store_image(id_obj, etage, angle, img_array)
+                self._store_image(id_obj, etage, angle, img_array,
+                                  payload.get("chemin_minio", ""))
                 self._log_buffer_state(id_obj)
                 all_done = self._check_all_complete(id_obj)
 
@@ -257,18 +268,56 @@ class ServiceBase:
               f"check_status mémorisé: {check_status}")
 
     def _store_image(self, id_obj: str, etage: int, angle: int,
-                      img: np.ndarray):
+                      img: np.ndarray, chemin_minio_original: str = ""):
+        """
+        Stocke l'image dans le buffer et publie immédiatement un topic
+        visualisation image_brute pour que le dashboard puisse remplacer
+        le spinner par l'image réelle.
+        """
         entry = self._buffer[id_obj]
         entry["timestamp"] = time.time()
         stockee = False
+
         for did, ddata in entry["defauts"].items():
             if ddata["complet"]:
                 continue
             if ddata["etage"] == etage:
                 ddata["images"][angle] = img
+                # Mémoriser le chemin MinIO original pour le payload traitement
+                if "chemins_bruts" not in ddata:
+                    ddata["chemins_bruts"] = {}
+                ddata["chemins_bruts"][angle] = chemin_minio_original
                 stockee = True
                 print(f"[{self.SERVICE_NAME}] [{id_obj}] image stockée "
                       f"E{etage}/A{angle} → défaut {did}")
+
+                # Publish visualisation image_brute
+                topic_visu = _VISU_TOPICS_IMAGE.get(self.SERVICE_NAME)
+                if topic_visu and chemin_minio_original:
+                    angles_recus = sorted(ddata["images"].keys())
+                    payload_visu = {
+                        "phase"           : "image_brute",
+                        "id_bouteille"    : id_obj,
+                        "type_bouteille"  : entry.get("type", "?"),
+                        "service"         : self.SERVICE_NAME,
+                        "id_defaut"       : did,
+                        "label_defaut"    : ddata["defaut"].label,
+                        "algo"            : ddata["defaut"].algorithme,
+                        "etage"           : etage,
+                        "angle"           : angle,
+                        "angles_requis"   : ddata["angles_requis"],
+                        "angles_recus"    : angles_recus,
+                        "chemin_brute"    : chemin_minio_original,
+                        "timestamp"       : datetime.now(timezone.utc)
+                                            .isoformat().replace("+00:00", "Z"),
+                    }
+                    try:
+                        self._mqtt.publish(topic_visu,
+                                           json.dumps(payload_visu,
+                                                       ensure_ascii=False))
+                    except Exception as e:
+                        print(f"[{self.SERVICE_NAME}] Erreur publish visu image: {e}")
+
         if not stockee:
             print(f"[{self.SERVICE_NAME}] [{id_obj}] image E{etage}/A{angle} "
                   f"non utilisée par aucun défaut (étage ne correspond pas)")
@@ -458,14 +507,16 @@ class ServiceBase:
             for did, ddata in entry["defauts"].items():
                 defaut  : DefautConfig = ddata["defaut"]
                 ref_img = self._get_ref_image(type_btl, defaut)
+                etage   = ddata["etage"]
 
                 try:
                     engine = create_engine(defaut, ref_img)
 
-                    # Inspecter toutes les images (tous les angles reçus)
-                    # et agréger les résultats ROI
-                    all_roi_results = []
-                    last_report     = None
+                    all_roi_results  = []
+                    last_report      = None
+                    visu_angles      : dict = {}   # { angle: { step_name: chemin } }
+                    # Récupérer les chemins MinIO originaux stockés dans le buffer
+                    chemins_bruts    = ddata.get("chemins_bruts", {})
 
                     for angle_img in sorted(ddata["images"].keys()):
                         report : InspectionReport = engine.inspect(
@@ -474,7 +525,16 @@ class ServiceBase:
                         all_roi_results.extend(report.roi_results)
                         last_report = report
 
-                    # Verdict du défaut : NG si au moins un ROI NG
+                        # Sauvegarder les steps OpenCV dans MinIO
+                        steps_chemins = self._save_steps_minio(
+                            id_obj, type_btl, did,
+                            etage, angle_img, report
+                        )
+                        visu_angles[str(angle_img)] = {
+                            "chemin_brute": chemins_bruts.get(angle_img, ""),
+                            "steps"       : steps_chemins,
+                        }
+
                     defaut_status = "OK" if all(
                         r.status == "OK" for r in all_roi_results
                     ) else "NG"
@@ -482,28 +542,69 @@ class ServiceBase:
                     if defaut_status == "NG":
                         verdict_global = "NG"
 
-                    verdicts_defauts.append(
-                        self._build_defaut_verdict(
-                            defaut, defaut_status, last_report
-                        )
+                    vdict = self._build_defaut_verdict(
+                        defaut, defaut_status, last_report
                     )
+                    vdict["algo"]            = defaut.algorithme
+                    vdict["angles_requis"]   = ddata["angles_requis"]
+                    vdict["angles_visu"]     = visu_angles
+                    verdicts_defauts.append(vdict)
 
                 except Exception as e:
                     import traceback
                     traceback.print_exc()
                     verdict_global = "NG"
                     verdicts_defauts.append({
-                        "id_defaut": did,
-                        "label"    : defaut.label,
-                        "verdict"  : "NG",
-                        "mesure"   : None,
-                        "reference": None,
-                        "tolerance": None,
-                        "ecart"    : None,
-                        "details"  : [{"error": str(e)}],
+                        "id_defaut"   : did,
+                        "label"       : defaut.label,
+                        "algo"        : defaut.algorithme,
+                        "verdict"     : "NG",
+                        "mesure"      : None,
+                        "reference"   : None,
+                        "tolerance"   : None,
+                        "ecart"       : None,
+                        "details"     : [{"error": str(e)}],
+                        "angles_requis": ddata["angles_requis"],
+                        "angles_visu" : {},
                     })
 
-        # Publication unique
+        # ── Publication visualisation traitement ─────────────────────
+        # Topic séparé du verdict — permet au dashboard d'afficher les
+        # steps sans attendre le service_decision_finale
+        topic_visu_trait = _VISU_TOPICS_TRAIT.get(self.SERVICE_NAME)
+        if topic_visu_trait and not is_timeout:
+            payload_visu = {
+                "phase"          : "traitement",
+                "id_bouteille"   : id_obj,
+                "type_bouteille" : type_btl,
+                "service"        : self.SERVICE_NAME,
+                "verdict_global" : verdict_global,
+                "timestamp"      : datetime.now(timezone.utc)
+                                   .isoformat().replace("+00:00", "Z"),
+                "defauts"        : [
+                    {
+                        "id_defaut"    : d.get("id_defaut"),
+                        "label"        : d.get("label"),
+                        "algo"         : d.get("algo"),
+                        "verdict"      : d.get("verdict"),
+                        "mesure"       : d.get("mesure"),
+                        "reference"    : d.get("reference"),
+                        "tolerance"    : d.get("tolerance"),
+                        "ecart"        : d.get("ecart"),
+                        "details"      : d.get("details", {}),
+                        "angles_requis": d.get("angles_requis", []),
+                        "angles_visu"  : d.get("angles_visu", {}),
+                    }
+                    for d in verdicts_defauts
+                ],
+            }
+            try:
+                self._mqtt.publish(topic_visu_trait,
+                                   json.dumps(payload_visu, ensure_ascii=False))
+            except Exception as e:
+                print(f"[{self.SERVICE_NAME}] Erreur publish visu traitement: {e}")
+
+        # ── Publication verdict existant (inchangé) ───────────────────
         output = {
             "id_bouteille"  : id_obj,
             "type_bouteille": type_btl,
@@ -516,6 +617,61 @@ class ServiceBase:
         self._mqtt.publish(self.TOPIC_SORTIE, json.dumps(output, ensure_ascii=False))
         print(f"[{self.SERVICE_NAME}] {id_obj} ({type_btl}) "
               f"-> {verdict_global} | {len(verdicts_defauts)} defaut(s)")
+
+    def _save_steps_minio(
+        self,
+        id_obj    : str,
+        type_btl  : str,
+        id_defaut : str,
+        etage     : int,
+        angle     : int,
+        report    : "InspectionReport",
+    ) -> dict:
+        """
+        Sauvegarde les steps visuels OpenCV dans MinIO.
+        Chemin : VISU_STEPS_PREFIX/<service>/<id>_<type>/<id_defaut>/E<e>_A<a>_<N>_<step>.jpg
+        Retourne { "N_step_name": chemin, ... }
+        N'inclut PAS l'image brute — elle est déjà dans MinIO à son chemin original.
+        """
+        import io
+        base    = (f"bouteilles_{type_btl}/{id_obj}/"
+                   f"visu_steps/{self.SERVICE_NAME}/{id_defaut}")
+        chemins = {}
+
+        if not report or not report.roi_results:
+            return chemins
+
+        try:
+            for roi_r in report.roi_results:
+                for step_name, step_img in (roi_r.steps or {}).items():
+                    if step_img is None:
+                        continue
+                    # Nom safe pour MinIO
+                    safe_step = step_name.replace(" ", "_") \
+                                         .replace("/", "-") \
+                                         .replace(".", "")
+                    safe_roi  = roi_r.roi_name.replace(" ", "_")
+                    key = (f"{base}/E{etage}_A{angle}"
+                           f"_{safe_roi}_{safe_step}.jpg")
+
+                    _, buf = cv2.imencode(
+                        ".jpg", step_img,
+                        [cv2.IMWRITE_JPEG_QUALITY, 88]
+                    )
+                    data = buf.tobytes()
+                    self._minio.put_object(
+                        BUCKET_NAME, key,
+                        io.BytesIO(data), len(data),
+                        content_type="image/jpeg"
+                    )
+                    # Clé lisible pour le dashboard
+                    chemins[step_name] = key
+
+        except Exception as e:
+            print(f"[{self.SERVICE_NAME}] Erreur save_steps_minio "
+                  f"({id_defaut} E{etage}/A{angle}): {e}")
+
+        return chemins
 
     @staticmethod
     def _build_defaut_verdict(defaut: DefautConfig,

@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block title %}Visualisation{% endblock %}
+
+{% block content %}
+
+<div class="visu-page-layout">
+  <!-- Colonne de gauche (Sidebar verte) -->
+  <aside class="visu-sidebar">
+    <div class="visu-live-badge" id="visu-live-badge">
+      <span class="visu-live-dot" id="visu-live-dot"></span>
+      <span id="visu-live-text">En attente...</span>
+    </div>
+
+    <nav class="visu-svc-nav">
+      <button class="visu-svc-btn" data-svc="check_position" onclick="selectService(this)">
+        Check Position
+      </button>
+      <button class="visu-svc-btn active" data-svc="colorimetrique" onclick="selectService(this)">
+        Colorimétrique
+      </button>
+      <button class="visu-svc-btn" data-svc="gradient" onclick="selectService(this)">
+        Gradient
+      </button>
+      <button class="visu-svc-btn" data-svc="geometrique" onclick="selectService(this)">
+        Géométrique
+      </button>
+      <button class="visu-svc-btn" data-svc="fusion" onclick="selectService(this)">
+        Fusion IA
+      </button>
+      <button class="visu-svc-btn" data-svc="ia" onclick="selectService(this)">
+        IA
+      </button>
+    </nav>
+  </aside>
+
+  <!-- Zone de contenu principale (Dashboard par service) -->
+  <main class="visu-main-content">
+    <div class="visu-page-header">
+      <h2 class="visu-page-title" id="visu-service-title">Exemple interface pour Colorimétrique</h2>
+      <div class="visu-info-bar">
+        <div id="visu-info-empty" class="visu-info-empty">
+          <i data-lucide="image-off" style="width:16px;height:16px;opacity:.4"></i>
+          <span>Aucune inspection reçue — en attente...</span>
+        </div>
+        <div id="visu-info-content" class="visu-info-content hidden">
+          <div class="visu-btl-id" id="visu-btl-id">—</div>
+          <div class="visu-btl-type" id="visu-btl-type">—</div>
+          <div style="flex:1"></div>
+          <div class="visu-ts" id="visu-ts">—</div>
+          <span id="visu-global-badge" class="verdict-badge badge-ok">—</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="visu-body" id="visu-body"></div>
+  </main>
+</div>
+
+<div id="visu-modal-overlay" class="visu-modal-overlay hidden"
+     onclick="if(event.target===this)closeVisuModal()">
+  <div class="visu-modal">
+    <div class="visu-modal-header">
+      <div class="visu-modal-title">
+        <span id="vm-id-badge" class="defaut-id-badge">—</span>
+        <span id="vm-name">—</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <span id="vm-badge" class="verdict-badge badge-ok">—</span>
+        <button class="modal-close" onclick="closeVisuModal()">
+          <i data-lucide="x" style="width:16px;height:16px"></i>
+        </button>
+      </div>
+    </div>
+    <div class="vm-angles-nav" id="vm-angles-nav"></div>
+    <div class="vm-imgs-grid" id="vm-imgs-grid"></div>
+    <div class="vm-metrics-row" id="vm-metrics-row"></div>
+  </div>
+</div>
+
+{% endblock %}
+{% block scripts %}
+<script src="/static/js/visualisation.js"></script>
+{% endblock %}

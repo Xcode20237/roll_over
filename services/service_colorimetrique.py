@@ -5,27 +5,27 @@ Service de production headless — famille colorimetrique.
 
 Defauts couverts :
   D3.1 — Bouchon manquant          (presence_hsv)
-  D3.2 — Bouchon de travers        (orientation_masque)  ← migré depuis gradient
+  D3.2 — Bouchon de travers        (orientation_masque)  <- migre depuis gradient
   D3.3 — Bague inviolabilite        (presence_hsv)
   D2.4 — Mousse excessive           (presence_hsv)
   D4.1 — Fuites parois              (presence_hsv)
   D4.4 — Absence de marquage        (presence_hsv)
 
-Chantier 4 — Image fusionnée :
-  Si un ROI a use_fused_image=True, le service télécharge l'image fusionnée
-  depuis MinIO (chemin stocké dans le buffer à la réception du message
+Chantier 4 — Image fusionnee :
+  Si un ROI a use_fused_image=True, le service telecharge l'image fusionnee
+  depuis MinIO (chemin stocke dans le buffer a la reception du message
   vision/ia/ready) au lieu d'utiliser l'image d'angle du buffer RAM.
 
 Topics MQTT :
-  Entrée : vision/classique/colorimetrique
-  Entrée fusion : vision/ia/ready  (pour récupérer le chemin du panorama)
+  Entree : vision/classique/colorimetrique
+  Entree fusion : vision/ia/ready  (pour recuperer le chemin du panorama)
   Sortie : vision/resultats/colorimetrique
 """
 
-import os
 import json
-import time
+import os
 import threading
+import time
 from datetime import datetime, timezone
 from typing import Dict, Optional, Any
 
@@ -37,11 +37,11 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from service_base import ServiceBase
+from service_base import ServiceBase, _VISU_TOPICS_TRAIT
 from shared.core.models import RecetteConfig, DefautConfig
 from shared.engines.engine_base import create_engine, InspectionReport
 
-# Topic fusion — pour récupérer le chemin de l'image fusionnée
+# Topic fusion — pour recuperer le chemin de l'image fusionnee
 TOPIC_FUSION_READY = os.getenv("TOPIC_SORTIE_FUSION", "vision/ia/ready")
 MINIO_ENDPOINT     = os.getenv("MINIO_ENDPOINT",  "localhost:9000")
 MINIO_USER         = os.getenv("MINIO_USER",       "admin_vision")
@@ -59,12 +59,12 @@ class ServiceColorimetrique(ServiceBase):
 
     def __init__(self):
         super().__init__()
-        # Cache des images fusionnées par id_bouteille
+        # Cache des images fusionnees par id_bouteille
         # { id_bouteille: {"chemin": str, "image": np.ndarray | None} }
         self._fused_cache     : Dict[str, Dict[str, Any]] = {}
         self._fused_cache_lock = threading.Lock()
 
-        # Client MinIO dédié pour téléchargement images fusionnées
+        # Client MinIO dedie pour telechargement images fusionnees
         try:
             self._minio_fused = Minio(
                 MINIO_ENDPOINT,
@@ -77,14 +77,14 @@ class ServiceColorimetrique(ServiceBase):
             self._minio_fused = None
 
     # ------------------------------------------------------------------
-    # Abonnement supplémentaire au topic fusion
+    # Abonnement supplementaire au topic fusion
     # ------------------------------------------------------------------
 
     def _on_connect(self, client, userdata, flags, rc):
         super()._on_connect(client, userdata, flags, rc)
         # S'abonner aussi au topic fusion pour stocker le chemin du panorama
         client.subscribe(TOPIC_FUSION_READY)
-        print(f"[colorimetrique] Écoute image fusionnée : {TOPIC_FUSION_READY}")
+        print(f"[colorimetrique] Ecoute image fusionnee : {TOPIC_FUSION_READY}")
 
     # ------------------------------------------------------------------
     # Surcharge _on_message pour intercepter le message fusion
@@ -99,9 +99,9 @@ class ServiceColorimetrique(ServiceBase):
 
     def _on_fusion_ready(self, msg):
         """
-        Reçoit le message vision/ia/ready publié par service_fusion.
+        Recoit le message vision/ia/ready publie par service_fusion.
         Stocke le chemin dans le cache et marque fusion_ready=True dans le buffer.
-        Déclenche l'inspection si check_position est déjà OK et tout est complet.
+        Declenche l'inspection si check_position est deja OK et tout est complet.
         """
         try:
             payload      = json.loads(msg.payload.decode())
@@ -120,30 +120,27 @@ class ServiceColorimetrique(ServiceBase):
                     "image" : None,
                     "ts"    : time.time(),
                 }
-            print(f"[colorimetrique] Image fusionnée disponible → "
+            print(f"[colorimetrique] Image fusionnee disponible -> "
                   f"{id_bouteille} : {chemin_propre}")
 
-            # Marquer fusion_ready dans le buffer et vérifier complétion
+            # Marquer fusion_ready dans le buffer et verifier completion
             all_done = False
             with self._buffer_lock:
                 if id_bouteille not in self._buffer:
-                    # Buffer pas encore créé — mémoriser dans cache suffit
-                    # fusion_ready sera mis à True lors de _init_buffer_entry
-                    print(f"[colorimetrique] [{id_bouteille}] fusion reçue avant images "
-                          f"— mémorisée dans cache")
+                    print(f"[colorimetrique] [{id_bouteille}] fusion recue avant images "
+                          f"- memorisee dans cache")
                     return
 
                 entry = self._buffer[id_bouteille]
                 entry["fusion_ready"] = True
 
                 if not entry.get("defauts"):
-                    # Sentinelle sans défauts — images pas encore arrivées
-                    print(f"[colorimetrique] [{id_bouteille}] fusion reçue "
-                          f"— sentinelle, en attente images")
+                    print(f"[colorimetrique] [{id_bouteille}] fusion recue "
+                          f"- sentinelle, en attente images")
                     return
 
                 print(f"[colorimetrique] [{id_bouteille}] fusion_ready=True "
-                      f"— vérification buffer...")
+                      f"- verification buffer...")
                 self._log_buffer_state(id_bouteille)
                 all_done = self._check_all_complete(id_bouteille)
 
@@ -151,31 +148,31 @@ class ServiceColorimetrique(ServiceBase):
                 self._execute_inspection(id_bouteille)
 
         except Exception as e:
-            print(f"[colorimetrique] Erreur réception fusion : {e}")
+            print(f"[colorimetrique] Erreur reception fusion : {e}")
 
     # ------------------------------------------------------------------
-    # Téléchargement image fusionnée à la demande
+    # Telechargement image fusionnee a la demande
     # ------------------------------------------------------------------
 
     def _get_fused_image(self, id_bouteille: str) -> Optional[np.ndarray]:
         """
-        Retourne l'image fusionnée pour cet id_bouteille.
-        La télécharge depuis MinIO si pas encore en cache.
+        Retourne l'image fusionnee pour cet id_bouteille.
+        La telecharge depuis MinIO si pas encore en cache.
         Retourne None si indisponible.
         """
         with self._fused_cache_lock:
             entry = self._fused_cache.get(id_bouteille)
 
         if entry is None:
-            print(f"[colorimetrique] Image fusionnée non disponible "
+            print(f"[colorimetrique] Image fusionnee non disponible "
                   f"pour {id_bouteille}")
             return None
 
-        # Déjà téléchargée
+        # Deja telechargee
         if entry["image"] is not None:
             return entry["image"]
 
-        # Téléchargement depuis MinIO
+        # Telechargement depuis MinIO
         if self._minio_fused is None:
             return None
         try:
@@ -190,23 +187,26 @@ class ServiceColorimetrique(ServiceBase):
             if img is not None:
                 with self._fused_cache_lock:
                     self._fused_cache[id_bouteille]["image"] = img
-                print(f"[colorimetrique] Image fusionnée téléchargée → "
-                      f"{id_bouteille} ({img.shape[1]}×{img.shape[0]})")
+                print(f"[colorimetrique] Image fusionnee telechargee -> "
+                      f"{id_bouteille} ({img.shape[1]}x{img.shape[0]})")
             return img
 
         except Exception as e:
-            print(f"[colorimetrique] Erreur téléchargement image fusionnée "
+            print(f"[colorimetrique] Erreur telechargement image fusionnee "
                   f"{id_bouteille} : {e}")
             return None
 
     # ------------------------------------------------------------------
-    # Surcharge _execute_inspection pour injecter l'image fusionnée
+    # Surcharge _execute_inspection pour injecter l'image fusionnee
+    # ET publier visu_traitement + steps MinIO (comme service_base)
     # ------------------------------------------------------------------
 
     def _execute_inspection(self, id_obj: str, is_timeout: bool = False):
         """
-        Surcharge de _execute_inspection pour remplacer l'image d'angle
-        par l'image fusionnée pour les ROIs qui ont use_fused_image=True.
+        Surcharge de _execute_inspection pour :
+        1. Remplacer l'image d'angle par l'image fusionnee (use_fused_image=True)
+        2. Sauvegarder les steps de visualisation dans MinIO
+        3. Publier le topic visu_traitement avec les chemins d'images
         """
         with self._buffer_lock:
             entry = self._buffer.pop(id_obj, None)
@@ -222,18 +222,21 @@ class ServiceColorimetrique(ServiceBase):
             for ddata in entry["defauts"].values():
                 defaut: DefautConfig = ddata["defaut"]
                 verdicts_defauts.append({
-                    "id_defaut": defaut.id_defaut,
-                    "label"    : defaut.label,
-                    "verdict"  : "NG",
-                    "mesure"   : None,
-                    "reference": None,
-                    "tolerance": None,
-                    "ecart"    : None,
-                    "details"  : [{"error": "TIMEOUT_IMAGES_MANQUANTES"}],
+                    "id_defaut"    : defaut.id_defaut,
+                    "label"        : defaut.label,
+                    "verdict"      : "NG",
+                    "mesure"       : None,
+                    "reference"    : None,
+                    "tolerance"    : None,
+                    "ecart"        : None,
+                    "details"      : [{"error": "TIMEOUT_IMAGES_MANQUANTES"}],
+                    "algo"         : defaut.algorithme,
+                    "angles_requis": ddata.get("angles_requis", []),
+                    "angles_visu"  : {},
                 })
         else:
-            # Charger l'image fusionnée une seule fois (si nécessaire)
-            fused_img : Optional[np.ndarray] = None
+            # Charger l'image fusionnee une seule fois (si necessaire)
+            fused_img: Optional[np.ndarray] = None
             needs_fused = any(
                 getattr(ddata["defaut"], "use_fused_image", False)
                 for ddata in entry["defauts"].values()
@@ -241,22 +244,24 @@ class ServiceColorimetrique(ServiceBase):
             if needs_fused:
                 fused_img = self._get_fused_image(id_obj)
                 if fused_img is None:
-                    print(f"[colorimetrique] ⚠️ [{id_obj}] "
-                          f"Image fusionnée demandée mais indisponible — "
-                          f"utilisation de l'image d'angle à la place")
+                    print(f"[colorimetrique] [{id_obj}] "
+                          f"Image fusionnee demandee mais indisponible - "
+                          f"utilisation de l'image d'angle a la place")
 
             for did, ddata in entry["defauts"].items():
-                defaut  : DefautConfig = ddata["defaut"]
-                ref_img = self._get_ref_image(type_btl, defaut)
+                defaut: DefautConfig  = ddata["defaut"]
+                ref_img               = self._get_ref_image(type_btl, defaut)
+                etage                 = ddata.get("etage", 1)
+                chemins_bruts         = ddata.get("chemins_bruts", {})
 
                 try:
                     engine = create_engine(defaut, ref_img)
 
                     all_roi_results = []
                     last_report     = None
+                    visu_angles: dict = {}
 
                     for angle_img in sorted(ddata["images"].keys()):
-                        # Choisir l'image selon use_fused_image du défaut
                         img_to_inspect = ddata["images"][angle_img]
                         if getattr(defaut, "use_fused_image", False) \
                                 and fused_img is not None:
@@ -266,6 +271,16 @@ class ServiceColorimetrique(ServiceBase):
                         all_roi_results.extend(report.roi_results)
                         last_report = report
 
+                        # Sauvegarde steps MinIO
+                        steps_chemins = self._save_steps_minio(
+                            id_obj, type_btl, did,
+                            etage, angle_img, report
+                        )
+                        visu_angles[str(angle_img)] = {
+                            "chemin_brute": chemins_bruts.get(angle_img, ""),
+                            "steps"       : steps_chemins,
+                        }
+
                     defaut_status = "OK" if all(
                         r.status == "OK" for r in all_roi_results
                     ) else "NG"
@@ -273,29 +288,69 @@ class ServiceColorimetrique(ServiceBase):
                     if defaut_status == "NG":
                         verdict_global = "NG"
 
-                    verdicts_defauts.append(
-                        self._build_defaut_verdict(defaut, defaut_status, last_report)
-                    )
+                    vdict = self._build_defaut_verdict(defaut, defaut_status, last_report)
+                    vdict["algo"]            = defaut.algorithme
+                    vdict["angles_requis"]   = ddata["angles_requis"]
+                    vdict["angles_visu"]     = visu_angles
+                    verdicts_defauts.append(vdict)
 
                 except Exception as e:
                     import traceback
                     traceback.print_exc()
                     verdict_global = "NG"
                     verdicts_defauts.append({
-                        "id_defaut": did,
-                        "label"    : defaut.label,
-                        "verdict"  : "NG",
-                        "mesure"   : None,
-                        "reference": None,
-                        "tolerance": None,
-                        "ecart"    : None,
-                        "details"  : [{"error": str(e)}],
+                        "id_defaut"    : did,
+                        "label"        : defaut.label,
+                        "verdict"      : "NG",
+                        "mesure"       : None,
+                        "reference"    : None,
+                        "tolerance"    : None,
+                        "ecart"        : None,
+                        "details"      : [{"error": str(e)}],
+                        "algo"         : defaut.algorithme,
+                        "angles_requis": ddata["angles_requis"],
+                        "angles_visu"  : {},
                     })
 
-        # Nettoyage cache fusionné pour cette bouteille
+        # Nettoyage cache fusionne pour cette bouteille
         with self._fused_cache_lock:
             self._fused_cache.pop(id_obj, None)
 
+        # Publication visualisation traitement (avec chemins MinIO)
+        topic_visu_trait = _VISU_TOPICS_TRAIT.get(self.SERVICE_NAME)
+        if topic_visu_trait and not is_timeout:
+            payload_visu = {
+                "phase"          : "traitement",
+                "id_bouteille"   : id_obj,
+                "type_bouteille" : type_btl,
+                "service"        : self.SERVICE_NAME,
+                "verdict_global" : verdict_global,
+                "timestamp"      : datetime.now(timezone.utc)
+                                   .isoformat().replace("+00:00", "Z"),
+                "defauts"        : [
+                    {
+                        "id_defaut"    : d.get("id_defaut"),
+                        "label"        : d.get("label"),
+                        "algo"         : d.get("algo"),
+                        "verdict"      : d.get("verdict"),
+                        "mesure"       : d.get("mesure"),
+                        "reference"    : d.get("reference"),
+                        "tolerance"    : d.get("tolerance"),
+                        "ecart"        : d.get("ecart"),
+                        "details"      : d.get("details", {}),
+                        "angles_requis": d.get("angles_requis", []),
+                        "angles_visu"  : d.get("angles_visu", {}),
+                    }
+                    for d in verdicts_defauts
+                ],
+            }
+            try:
+                self._mqtt.publish(topic_visu_trait,
+                                   json.dumps(payload_visu, ensure_ascii=False))
+            except Exception as e:
+                print(f"[colorimetrique] Erreur publish visu traitement: {e}")
+
+        # Publication verdict vers le service decision
         output = {
             "id_bouteille"  : id_obj,
             "type_bouteille": type_btl,

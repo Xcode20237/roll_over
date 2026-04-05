@@ -5,31 +5,26 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Roll-over QC — {% block title %}Dashboard{% endblock %}</title>
 <link rel="stylesheet" href="/static/css/style.css">
-<!-- Lucide Icons (local en priorité, CDN en fallback) -->
-<script src="/static/js/lucide.js" onerror="loadFromCDN('lucide')"></script>
+<!-- Lucide Icons -->
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
 <script>
   window._LIB_SOCKETIO_URL = "/static/js/socket.io.min.js";
   window._LIB_CHARTJS_URL  = "/static/js/chart.min.js";
-  window._LIB_LUCIDE_URL   = "/static/js/lucide.js";
   window._CDN_SOCKETIO     = "https://cdn.socket.io/4.7.2/socket.io.min.js";
   window._CDN_CHARTJS      = "https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js";
-  window._CDN_LUCIDE       = "https://unpkg.com/lucide@0.441.0/dist/umd/lucide.js";
 </script>
 <script src="/static/js/socket.io.min.js" onerror="loadFromCDN('socketio')"></script>
 <script src="/static/js/chart.min.js"     onerror="loadFromCDN('chartjs')"></script>
 <script>
 function loadFromCDN(lib) {
   var s = document.createElement('script');
-  s.src = lib === 'socketio' ? window._CDN_SOCKETIO
-        : lib === 'lucide'   ? window._CDN_LUCIDE
-        : window._CDN_CHARTJS;
+  s.src = lib === 'socketio' ? window._CDN_SOCKETIO : window._CDN_CHARTJS;
   document.head.appendChild(s);
 }
 window.addEventListener('DOMContentLoaded', function() {
-  if (typeof io     === 'undefined') loadFromCDN('socketio');
-  if (typeof Chart  === 'undefined') loadFromCDN('chartjs');
-  if (typeof lucide === 'undefined') loadFromCDN('lucide');
-  else lucide.createIcons();
+  if (typeof io    === 'undefined') loadFromCDN('socketio');
+  if (typeof Chart === 'undefined') loadFromCDN('chartjs');
+  if (typeof lucide !== 'undefined') lucide.createIcons();
 });
 </script>
 </head>
@@ -57,15 +52,19 @@ window.addEventListener('DOMContentLoaded', function() {
   </div>
 
   <div class="nav-links">
-    <a href="/"           class="nav-link {% if request.path == '/'           %}active{% endif %}">
+    <a href="/"              class="nav-link {% if request.path == '/'              %}active{% endif %}">
       <i data-lucide="layout-dashboard" style="width:15px;height:15px"></i>
       Opérateur
     </a>
-    <a href="/technique"  class="nav-link {% if request.path == '/technique'  %}active{% endif %}">
+    <a href="/technique"     class="nav-link {% if request.path == '/technique'     %}active{% endif %}">
       <i data-lucide="activity" style="width:15px;height:15px"></i>
       Technique
     </a>
-    <a href="/historique" class="nav-link {% if request.path == '/historique' %}active{% endif %}">
+    <a href="/visualisation" class="nav-link {% if request.path == '/visualisation' %}active{% endif %}">
+      <i data-lucide="scan-eye" style="width:15px;height:15px"></i>
+      Visualisation
+    </a>
+    <a href="/historique"    class="nav-link {% if request.path == '/historique'    %}active{% endif %}">
       <i data-lucide="database" style="width:15px;height:15px"></i>
       Historique
     </a>

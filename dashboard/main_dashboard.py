@@ -39,6 +39,10 @@ def vue_technique():
 def vue_historique():
     return render_template("history.html")
 
+@app.route("/visualisation")
+def vue_visualisation():
+    return render_template("visualisation.html")
+
 # ══════════════════════════════════════════════════════════════════
 # API REST
 # ══════════════════════════════════════════════════════════════════
@@ -72,6 +76,140 @@ def api_historique():
         limite         = int(request.args.get("limite", 50)),
         offset         = int(request.args.get("offset", 0)),
     ))
+
+@app.route("/api/minio_url")
+def api_minio_url():
+    """
+    Retourne une URL présignée MinIO pour afficher une image dans le navigateur.
+    Param : chemin=<chemin_objet_minio>
+    """
+    chemin = request.args.get("chemin", "").strip()
+    if not chemin:
+        return jsonify({"erreur": "chemin manquant"}), 400
+    try:
+        from minio_reader import get_presigned_url
+        url = get_presigned_url(chemin)
+        return jsonify({"url": url})
+    except Exception as e:
+        return jsonify({"erreur": str(e)}), 500
+
+@app.route("/api/visualisation/derniere")
+def api_visu_derniere():
+    """
+    Retourne la dernière visualisation reçue pour un service donné.
+    Param : service=colorimetrique|gradient|geometrique|ia|fusion|check_position
+    """
+    service = request.args.get("service", "").strip()
+    data    = state.get_derniere_visu(service)
+    if data is None:
+        return jsonify({"vide": True})
+    return jsonify(data)
+
+@app.route("/api/recette")
+def api_recette():
+    """
+    Lit la recette active d'un service pour un type de bouteille.
+    Retourne les défauts avec angles_requis pour construire les placeholders.
+
+    Supporte deux structures de fichiers :
+      1. recettes/{service}/{type}/recette_v{N}.json  (colorimetrique, gradient, geometrique)
+      2. recettes/{service}/recette_{type}.json        (fusion, ia, check_position)
+    """
+    import re, pathlib
+    service        = request.args.get("service", "").strip()
+    type_bouteille = request.args.get("type",    "").strip()
+    if not service or not type_bouteille:
+        return jsonify({"erreur": "service et type requis"}), 400
+
+    try:
+        qc_data = os.getenv("QC_DATA_DIR", "")
+        if qc_data:
+            base = pathlib.Path(qc_data)
+            if not base.is_absolute():
+                base = pathlib.Path.cwd() / base
+        else:
+            base = pathlib.Path(__file__).resolve().parent.parent / "data"
+
+        recettes_root = base / "recettes" / service
+
+        # ── Structure 1 : sous-dossier par type (recettes/{svc}/{type}/recette_v*.json)
+        folder = recettes_root / type_bouteille
+        pattern = re.compile(r"^recette_v(\d+)\.json$")
+        if folder.exists():
+            files = sorted(
+                [(int(m.group(1)), f) for f in folder.iterdir()
+                 if (m := pattern.match(f.name))],
+                key=lambda t: t[0]
+            )
+            if files:
+                with open(files[-1][1], "r", encoding="utf-8") as fh:
+                    data = json.load(fh)
+                defauts_out = []
+                for d in data.get("defauts", []):
+                    if not d.get("actif", True):
+                        continue
+                    acq = d.get("acquisition", {})
+                    defauts_out.append({
+                        "id_defaut"      : d.get("id_defaut"),
+                        "label"          : d.get("label"),
+                        "algo"           : d.get("algorithme"),
+                        "etage"          : acq.get("etage", 1),
+                        "angles_requis"  : acq.get("angles_requis", []),
+                        "use_fused_image": d.get("use_fused_image", False),
+                    })
+                return jsonify({
+                    "service"       : service,
+                    "type_bouteille": type_bouteille,
+                    "version"       : files[-1][0],
+                    "defauts"       : defauts_out,
+                })
+
+        # ── Structure 2 : fichier plat (recettes/{svc}/recette_{type}.json)
+        flat_file = recettes_root / f"recette_{type_bouteille}.json"
+        if flat_file.exists():
+            with open(flat_file, "r", encoding="utf-8") as fh:
+                data = json.load(fh)
+
+            defauts_out = []
+
+            # Cas fusion : pas de défauts classiques → synthétiser depuis grille_capture
+            if service in ("fusion", "ia"):
+                grille = data.get("grille_capture", {})
+                angles = grille.get("angles_attendus", [])
+                etages = grille.get("etages_attendus", [1])
+                defauts_out.append({
+                    "id_defaut"      : service.upper(),
+                    "label"          : "Fusion panoramique" if service == "fusion" else "Détection IA",
+                    "algo"           : service,
+                    "etage"          : etages[0] if etages else 1,
+                    "angles_requis"  : angles,
+                    "use_fused_image": service == "ia",
+                })
+            else:
+                for d in data.get("defauts", []):
+                    if not d.get("actif", True):
+                        continue
+                    acq = d.get("acquisition", {})
+                    defauts_out.append({
+                        "id_defaut"      : d.get("id_defaut"),
+                        "label"          : d.get("label"),
+                        "algo"           : d.get("algorithme"),
+                        "etage"          : acq.get("etage", 1),
+                        "angles_requis"  : acq.get("angles_requis", []),
+                        "use_fused_image": d.get("use_fused_image", False),
+                    })
+
+            return jsonify({
+                "service"       : service,
+                "type_bouteille": type_bouteille,
+                "version"       : data.get("version", 1),
+                "defauts"       : defauts_out,
+            })
+
+        return jsonify({"erreur": f"Aucune recette trouvée pour {service}/{type_bouteille}"}), 404
+
+    except Exception as e:
+        return jsonify({"erreur": str(e)}), 500
 
 @app.route("/api/verdict/<int:verdict_id>")
 def api_verdict_detail(verdict_id: int):

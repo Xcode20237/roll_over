@@ -16,7 +16,8 @@ from config import (MQTT_BROKER, MQTT_PORT, TOPICS_ECOUTE, TOPIC_NOMS,
                    TOPIC_STATUS_COLORIMETRIQUE, TOPIC_STATUS_GRADIENT,
                    TOPIC_STATUS_GEOMETRIQUE, TOPIC_STATUS_DECISION,
                    TOPIC_STATUS_IA, TOPIC_STATUS_CHECK_POSITION,
-                   TOPIC_SORTIE_CHECK_POSITION)
+                   TOPIC_SORTIE_CHECK_POSITION,
+                   TOPICS_VISU, TOPIC_VISU_SERVICE)
 from state_manager import state
 
 if TYPE_CHECKING:
@@ -89,13 +90,41 @@ class MQTTListener:
         # ── Résultat d'un service classique ───────────────────────────
         elif topic.startswith("vision/resultats/") and topic != "vision/resultats/final":
             service = TOPIC_NOMS.get(topic, topic.split("/")[-1])
-            id_btl  = str(payload.get("id_bouteille", "?"))
             state.service_recu(service, payload)
             state.marquer_activite(service)
+            # On ne stocke dans visu_recu que si aucune visu traitement
+            # n'a déjà été reçue pour cette bouteille (la visu traitement
+            # contient les chemins d'images — le topic resultats non)
+            current_visu = state.get_derniere_visu(service)
+            id_btl = str(payload.get("id_bouteille", "?"))
+            if current_visu is None or current_visu.get("id_bouteille") != id_btl:
+                state.visu_recu(service, payload)
             self._emit("service_recu", {
                 "service"     : service,
                 "id_bouteille": id_btl,
                 "verdict"     : payload.get("verdict_global", "?"),
+            })
+            # Émettre l'événement visualisation vers le dashboard
+            self._emit("visu_update", {
+                "service"       : service,
+                "id_bouteille"  : id_btl,
+                "type_bouteille": payload.get("type_bouteille", "?"),
+                "verdict_global": payload.get("verdict_global", "?"),
+                "timestamp"     : payload.get("timestamp", ""),
+                "defauts"       : [
+                    {
+                        "id_defaut"    : d.get("id_defaut"),
+                        "label"        : d.get("label"),
+                        "verdict"      : d.get("verdict"),
+                        "mesure"       : d.get("mesure"),
+                        "reference"    : d.get("reference"),
+                        "tolerance"    : d.get("tolerance"),
+                        "ecart"        : d.get("ecart"),
+                        "details"      : d.get("details", {}),
+                        "visualisation": d.get("visualisation", {}),
+                    }
+                    for d in payload.get("defauts", [])
+                ],
             })
             self._emit("bouteille_active", state.get_bouteille_active())
             self._emit("services_update",  state.get_services_snapshot())
@@ -133,6 +162,60 @@ class MQTTListener:
             # Si NG → envoyer aussi une alerte immédiate
             if verdict_check == "NG":
                 self._emit("alertes_update", state.get_alertes_actives())
+
+        # ── Topics visualisation temps réel ──────────────────────────
+        elif topic in TOPIC_VISU_SERVICE:
+            service = TOPIC_VISU_SERVICE[topic]
+            phase   = payload.get("phase", "")
+
+            if phase == "image_brute":
+                # Image reçue dans le buffer — remplace le spinner
+                state.visu_image_brute_recu(service, payload)
+                self._emit("visu_image_brute", {
+                    "service"       : service,
+                    "id_bouteille"  : payload.get("id_bouteille"),
+                    "type_bouteille": payload.get("type_bouteille"),
+                    "id_defaut"     : payload.get("id_defaut"),
+                    "label_defaut"  : payload.get("label_defaut"),
+                    "algo"          : payload.get("algo"),
+                    "etage"         : payload.get("etage"),
+                    "angle"         : payload.get("angle"),
+                    "angles_requis" : payload.get("angles_requis", []),
+                    "angles_recus"  : payload.get("angles_recus", []),
+                    "chemin_brute"  : payload.get("chemin_brute", ""),
+                    # fusion spécifique
+                    "nb_images_recues"   : payload.get("nb_images_recues"),
+                    "nb_images_attendues": payload.get("nb_images_attendues"),
+                    "timestamp"     : payload.get("timestamp"),
+                })
+
+            elif phase == "traitement":
+                # Inspection terminée — afficher les steps + verdict
+                state.visu_recu(service, payload)
+                if service in ("fusion", "ia"):
+                    # Payload simplifié pour fusion/IA
+                    self._emit("visu_traitement", {
+                        "service"       : service,
+                        "id_bouteille"  : payload.get("id_bouteille"),
+                        "type_bouteille": payload.get("type_bouteille"),
+                        "verdict_global": payload.get("verdict_global"),
+                        "chemin_fusion" : payload.get("chemin_fusion"),
+                        "chemin_brute"  : payload.get("chemin_brute"),
+                        "chemin_annote" : payload.get("chemin_annote"),
+                        "detections"    : payload.get("detections", []),
+                        "nb_images"     : payload.get("nb_images"),
+                        "timestamp"     : payload.get("timestamp"),
+                    })
+                else:
+                    # Services classiques — defauts avec angles_visu
+                    self._emit("visu_traitement", {
+                        "service"       : service,
+                        "id_bouteille"  : payload.get("id_bouteille"),
+                        "type_bouteille": payload.get("type_bouteille"),
+                        "verdict_global": payload.get("verdict_global"),
+                        "defauts"       : payload.get("defauts", []),
+                        "timestamp"     : payload.get("timestamp"),
+                    })
 
         # ── Heartbeats des services ───────────────────────────────────
         elif topic in (TOPIC_STATUS_COLORIMETRIQUE, TOPIC_STATUS_GRADIENT,
